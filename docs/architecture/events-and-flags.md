@@ -10,6 +10,8 @@ Los flags del motor son literales hex sin nombre. Este glosario dice qué signif
 
 Los dos usan el mismo orden de bits que la tabla de tareas ([game-loop.md](game-loop.md)). Una tarea se ejecuta si su bit está en `tk_flg` y **no** en `ts_flg`. Muchas comprobaciones del tipo `ts_flg & 0x200` significan en realidad "el inventario no está abierto".
 
+**Con el inventario abierto** la tarea Game (7) está suspendida (`ts_flg 0x80`) pero la tarea Event (8) sigue corriendo con `sp_flg = 0x30` (solo el planificador de eventos y la lectura del mando). Ver [inventory.md](inventory.md).
+
 | Bit | Máscara | Tarea | Significado de `ts_flg` cuando está a 1 |
 | --- | --- | --- | --- |
 | 6 | 0x40 | Pad | Mando desactivado (al empezar una demo; se reactiva al final de la carga de sala) |
@@ -57,7 +59,7 @@ Se pone a todo 1 en system.c:140 y al terminar de cargar la sala (room.c:545). T
 | 0x80 | Luces | light.c:411 |
 | 0x200 | Cuenta atrás de evento | sync.c:64 |
 
-Valores típicos: menús `0x30` (system.c:572); puerta `0x48` (room.c:898); vídeo `4` (system.c:760). Un mensaje de script congela `0x7` (event.c:1076).
+Valores típicos: menús e inventario `0x30` (system.c:617); puerta `0x48` (room.c:898); vídeo `4` (system.c:760). Un mensaje de script congela `0x7` (event.c:1076).
 
 ### `pt_flg`: qué se dibuja
 
@@ -92,10 +94,11 @@ Al cambiar de sala se conservan los bits `0x9B8C00CB` (system.c:185).
 | 0x4000 | Pasada de espejo en curso | game.c:79-91 | C |
 | 0x10000 | La cámara de examinar usa un fotograma de cámara de evento | hitchk.c:4806 | C |
 | 0x20000 | Mantener la cámara de evento al cerrar el mensaje | event.c:4613 | P |
-| 0x40000 | Sin munición / recarga automática pendiente | player.c:4634 | P |
+| 0x40000 | **Arma vacía**: la pone `bhCountBullet` al llegar a 0 balas (weapon.c:462); activa la recarga automática y desactiva el fuego automático. Ver [combat.md](combat.md) | weapon.c:462, player.c:4940-4955 | C |
 | 0x80000 | Zoom de la mira (con `st_flg 0x800000`) | playpch2.c:44 | P |
 | 0x1000000 | Modo primera persona persistente (`bhSyukanModeSet`) | event.c:8885 | P |
-| 0x8000000 | El personaje tiene la mochila (inventario extra), según `ev_flg` 6/7/8 | player.c:1080-1106 | P |
+| 0x8000000 | El personaje tiene la mochila (2 casillas más, `itm[10..11]`), según `ev_flg` 6/7/8; siempre activa en el Battle Game. Ver [inventory.md](inventory.md) | player.c:1088-1094, sub1.c:3392-3399 | C |
+| 0x10000000 | **Crítico de la pistola especial** (id de objeto 131): lo activa `WeaponSet` al equiparla y lo lee el disparo. Ver [combat.md](combat.md) | sub1.c:4555, player.c:4966 | C |
 | 0x20000000 | Ya ha corrido al menos un frame de juego | system.c:554 | P |
 | 0x80000000 | Reloj de tiempo de juego en marcha | ps2_NaSystem.c:104 | C |
 
@@ -108,7 +111,7 @@ Se pone a 0 al cambiar de sala (system.c:187).
 | 0x1 | Cámara controlada por evento o plano fijo, no por las zonas | cut.c:26, :1690 | C |
 | 0x2 | Niebla activada | sync.c:174 | C |
 | 0x4 | **Jugador ocupado o bloqueado** (cinemática, puerta, escaleras, recoger objeto, daño); bloquea los menús | player.c:1732, system.c:600-632 | C |
-| 0x8 | Pantalla de estado o inventario abierta | system.c:604 | C |
+| 0x8 | Pantalla de estado o inventario abierta (subpantalla; la pone `bhCheckSubTask` al abrir y `ItemTaskCheck` la quita al cerrar) | system.c:612, sub1.c:3103-3226 | C |
 | 0x40 | La sala tiene agua | objitm.c:1317 | P |
 | 0x80 | Examinar con cámara en curso | hitchk.c:4813 | P |
 | 0x100 | Sala con espejo | game.c:77 | C |
@@ -119,7 +122,7 @@ Se pone a 0 al cambiar de sala (system.c:187).
 | 0x800000 | Dibujar la mira | game.c:99 | C |
 | 0x1000000 | Usando las luces de evento | light.c:356 | P |
 | 0x4000000 | Terminal de ordenador activo | system.c:585 | C |
-| 0x8000000 | Máquina de escribir activa | system.c:575 | C |
+| 0x8000000 | Máquina de escribir activa | system.c:576-590 | C |
 | 0x10000000 | Opciones abiertas | system.c:641 | C |
 | 0x20000000 | Mechero encendido | pwksub.c:3464 | P |
 | 0x40000000 | Termómetro en pantalla | game.c:104 | P |
@@ -136,7 +139,7 @@ Al cambiar de sala se conservan los bits `0xAF8000BB` (system.c:191). Algunos bi
 | 0x2 | Fundido de pantalla en curso | screen.c:23 | C |
 | 0x4 | **Modo cinemática** (bandas negras) | event.c:1632-1673; el final se procesa en system.c:736 | C |
 | 0x8 | Examinar con cámara fija pedido | hitchk.c:4815 | P |
-| 0x10 | Coger item → abrir la pantalla de objeto obtenido | hitchk.c:4885 | P |
+| 0x10 | Objeto cogido: abre la pantalla de objeto obtenido (petición automática de inventario) | hitchk.c:4885, player.c:3936 | C |
 | 0x20 | Mensaje de examinar lanzado | hitchk.c:4838 | P |
 | 0x40 | Modo cinemática sin bandas | event.c:1657 | C |
 | 0x80 | Cambio de personaje pendiente | event.c:6276, system.c:1725 | C |
@@ -145,8 +148,12 @@ Al cambiar de sala se conservan los bits `0xAF8000BB` (system.c:191). Algunos bi
 | 0x400 | Item usado en un punto de examinar (`sb_id`) | sub1.c:3937 | P |
 | 0x800 | Item cogido (activa `it_flg`) | sub1.c:3813 | P |
 | 0x1000 / 0x2000 | Cerrar mensaje / mensaje terminado (los scripts esperan a 0x2000) | message.c:244-310 | P |
+| 0x4000 | Coger un objeto sin preguntar (petición de inventario). Lo consume `GetItem` (sub1.c:3809-3857). Quién lo activa: sin confirmar (probablemente un script) | sub1.c:3809 | P |
 | 0x10000 | Abrir el mapa desde un evento | event.c:6843 | C |
-| 0x200000 | Petición de máquina de escribir (la pone el script) | system.c:568 | P |
+| 0x20000 | Abrir el visor de archivos (petición de inventario) | hitchk.c:4860 | C |
+| 0x40000 / 0x80000 / 0x100000 | Abrir el baúl general / especial A / especial B (peticiones de inventario; zona de examinar tipo 4 o tapa `bhObjItmBox`) | hitchk.c:4893-4905, objitm.c:820 | C |
+| 0x200000 | Petición de máquina de escribir (la pone el script; tiene prioridad sobre el inventario) | system.c:576 | P |
+| 0x2000000 | **Bloquea el inventario** (`bhCheckSubTask`, system.c:608). Ningún código C lo activa: lo pone un guion (deducido) | system.c:608 | P |
 | 0x400000 | Petición de terminal de ordenador | event.c:6430 | C |
 | 0x800000 | Colocar al jugador en la posición guardada | player.c:669, room.c:477 | C |
 | 0x4000000 | Petición de vídeo | event.c:1399 | C |
@@ -156,7 +163,7 @@ Al cambiar de sala se conservan los bits `0xAF8000BB` (system.c:191). Algunos bi
 ### Otros flags de `SYS_WORK`
 
 - **`rm_flg`**: memoria de trabajo de la sala; se pone a 0 al cambiar de sala. Su significado depende de la sala. Algunos enemigos usan los bits 0x1-0x10 (por ejemplo, el "Spotter" activa 0x1 al ver al jugador). **C**
-- **`ef_flg`**: 0x1 = los efectos siguen durante la carga (C); 0x2 = efecto de disparo con mira (P); 0x4 = buffer de estelas reservado (P).
+- **`ef_flg`**: 0x1 = los efectos siguen durante la carga (C); 0x2 = lanzador lineal (arma 18): lo activa la mira (playpch2.c:134), lo lee player.c:4925 y lo borran los efectos (effsub1.c:9094) (C); 0x4 = buffer de estelas reservado (P).
 - **`ss_flg`** (sesión):
 
   | Máscara | Significado | Conf. |
@@ -231,10 +238,10 @@ Cada archivo de enemigo usa además bits privados.
 | --- | --- | --- |
 | 1 | Carga inicial (`bhFirstGameStart`, system.c:462) | 1-2 `sysmes.ald`; 4 init de objetos, efectos, cámara, jugador y enemigos; 5 `AllItemInit` en partida nueva; 6-7 modelo del jugador; 8-9 arma; 10 pasa a modo 4; 20-21 demo |
 | 2 | Cambio de sala (`bhStartDoorDemo`, room.c:993) | 0 `memp = mempb`; 1 banco de sonido de la sala; 2 pasa a modo 4 |
-| 3 | Cambio de arma (`bhArmsItemChange`, event.c:1299; sub1.c) | Fichero de arma → `bhReadWeaponData` → banco de sonido |
+| 3 | Cambio de arma (`bhArmsItemChange`, event.c:1285; `WeaponSet`, sub1.c:4456; system.c:1573-1608) | Lee `SYSTEM.AFS[plp->wpnr_no + ply_id*30 + 20]` → `bhReadWeaponData` (modelos `wrmdlp`/`wlmdlp`, `bhSetWeapon`, animaciones en `plp->mnwP[100+]`) → `RequestArmsSoundBank`. Ver [combat.md](combat.md) |
 | 4 | Carga de sala (system.c:1601) | 0 `rm_*.rdx` + `bhInitReadRDT`; 1 `Expand`; 2 `bhSetRDT`; 3 texturas + `bhFinishRoom` (1723); 4-7 cambio de personaje; **10 `bhInitEvent()` (1816)**; 11 espera al sonido y a la puerta; **16 `ts_flg &= ~0x180` reanuda Game y Event (1886)** |
-| 5 | Inventario (`bhCheckSubTask`, system.c:606) | Guarda las texturas de la sala, carga la interfaz de items, suspende Game |
-| 6 | Modelo de item para examinar (itemview.c:297) | |
+| 5 | Inventario (`bhCheckSubTask`, system.c:608; modo en system.c:1962-2036) | 0 copia las texturas de la sala a memoria principal; 1 lee `ITEM.AFS[145]` (interfaz); 2 al acabar el fundido suspende Game (`ts_flg \|= 0x80`) y libera texturas; 3 `SbsTextureInit`; 4 `ItemTaskCheck` activa Itemselect. Ver [inventory.md](inventory.md) |
+| 6 | Modelo 3D del objeto examinado (`Model_Read_Start`, itemview.c:284-315; lo pide `StatusMain` con el inventario abierto). Ver [inventory.md](inventory.md) | |
 | 7 | Terminal de ordenador (system.c:591) | |
 
 El sonido lo carga `bhSysCallSndMonitor` (system.c:2202) según `sdm_flg`.
@@ -332,7 +339,7 @@ Funciones: `bhStFlg`/`bhCrFlg`/`bhCkFlg` (flag.c); `bhFlagCk(type, n, want)` (ev
 
 | Array | Bits | Para qué |
 | --- | --- | --- |
-| `ev_flg[32]` | 1024 | Progreso de la historia. Ejemplos: 6/7/8 = mochila de cada personaje; 67/69/70 = cuentas atrás; 99 = intro de la celda terminada |
+| `ev_flg[32]` | 1024 | Progreso de la historia. Ejemplos: 6/7/8 = mochila de cada personaje; 74 = modo ráfaga del arma de id 10 (`WeaponSet`, sub1.c:4527-4534) y la leen `WpnTab.flg 0x200` (player.c:4981); 75 = se activa al disparar el arma 20 (o la 18 con `gm_mode == 3`; player.c:5117, :5132, playpch2.c:161) y lo lee el ranking (ranking.c:154); 67/69/70 = cuentas atrás; 99 = intro de la celda terminada |
 | `it_flg[16]` | 512 | Items de la sala ya cogidos |
 | `ic_flg[16]` | 512 | Item examinado pero no cogido (el mapa reutiliza bits) |
 | `ed_flg[32]` | 1024 | Enemigos muertos |

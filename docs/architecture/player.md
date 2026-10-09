@@ -30,7 +30,7 @@ Rutas relativas a `src/ps2/veronica/prog/`.
 - Hay unos 6.900 usos de `plp->` en 60 archivos: player.c 2.532, pl_evt.c 349, playpch.c 273, playpch2.c 106, unos 3.000 en los `enNN.c`, y el resto en cut.c, event.c, room.c, hitchk.c, weapon.c, sub1.c, objitm.c…
 - Las macros `PEXP0_*` y `EXP1_*` ([macros.h](../../include/ps2/veronica/prog/macros.h)) también expanden a `plp->exp0` / `plp->exp1`.
 - **Casi todas las funciones del jugador son `void f(void)` y trabajan sobre `plp`.** Por eso se puede ejecutar el código del jugador sobre otra instancia cambiando `plp` temporalmente.
-- No hay estado estático por jugador en player.c. Solo hay variables de uso momentáneo (Motion.c `mka_ang`, playpch.c:237 y :1133, pwksub.c:3246, weapon.c:504). El estado del jugador vive en `BH_PWORK` + `exp0..exp3` + `sys->obwp[0..3]`.
+- No hay estado estático por jugador en player.c. Solo hay variables de uso momentáneo (Motion.c `mka_ang`, playpch.c:237 y :1133, pwksub.c:3246, weapon.c:504). El estado del jugador vive en `BH_PWORK` + `exp0..exp3` + `sys->obwp[0..3]`, más el inventario (`swork.pip`) y algunos flags globales (ver "Estado global que toca el código del jugador").
 
 ### Bloques `exp` del jugador
 
@@ -98,8 +98,8 @@ Las animaciones de movimiento salen de `PlMtnAct[2][3][7]` (player.c:223). Los �
 
 | Puntero en `sys` | Tamaño | Uso |
 | --- | --- | --- |
-| `plmdlp` | 128 KB | Modelo. Al final del buffer se guardan los `O_WORK` de cada modelo (dread.c:157-162) |
-| `lmmdlp`, `wrmdlp`, `wlmdlp` | 32 KB cada uno | `lmmdlp` no se usa después de reservarlo |
+| `plmdlp` | 128 KB | Modelo. Los `O_WORK` (`owP`) de cada modelo van justo detrás del modelo, alineados a 256 (dread.c:161-170) |
+| `lmmdlp`, `wrmdlp`, `wlmdlp` | 32 KB cada uno | `lmmdlp` no lo usa nadie después de reservarlo (está por debajo de `mempb`: sirve para datos propios del cooperativo) |
 | `plmthp` | 12 KB | Tabla de 512 `MN_WORK` (cuerpo 0-99, arma 100+) |
 | `plbmtp` | 384 KB | Animaciones de cuerpo |
 | `plwmtp` | 64 KB | Animaciones de arma |
@@ -113,12 +113,54 @@ En total son unos 724 KB, reservados con `bhGetFreeMemory` (pwksub.c:16) antes d
 
 | Entrada | Personaje | Tamaño |
 | --- | --- | --- |
-| `[10]` | Claire (`ply_id` 0) | 1.294.440 B (modelo 54 KB, animaciones 251 KB, texturas ~987 KB) |
+| `[10]` | Claire (`ply_id` 0) | 1.294.440 B (modelo 54 KB, animaciones 251 KB, texturas 987 KB en el fichero) |
 | `[11]` | `ply_id` 1, probablemente Chris | 1.058.632 B |
 | `[12]` | `ply_id` 2, sin confirmar (¿Steve?) | 999.496 B |
 | `[13]` | `ply_id` 3, probablemente Wesker (empieza el Battle Game) | 1.134.056 B |
-| `[14]` | Claire, traje alternativo (`costume` 1) | 1.249.352 B |
-| `[20 + ply_id*30 + wpnr_no]` | Arma | 260-335 KB |
+| `[14]` | Claire, traje alternativo (`costume` 1, "Claire B") | 1.249.352 B |
+| `[20 + ply_id*30 + wpnr_no]` | Arma (con las manos). `[20]` = sin arma: solo las dos manos, de un hueso cada una, sin animaciones | 260-335 KB |
+
+`sys->costume` solo cambia el índice del fichero de personaje (system.c:1427, 1431, 1769, 1773). `bhSetPlayer`, `bhReadPlayerData` y `bhReadWeaponData` no dependen de él, y el fichero de arma es el mismo con los dos trajes.
+
+#### Formato del fichero de personaje
+
+Todo en `u32` little-endian. El cargador lee el fichero entero en `sys->memp` y `bhReadPlayerData` (dread.c:17-175) lo reparte:
+
+1. **Modelos:** `u32` de tamaño y una secuencia de bloques `{u32 size; data}` que acaba en `0xFFFFFFFF` (`size == 0` se salta) (dread.c:34-81).
+   - Si `data` empieza por `SKIN_MAGIC` (0x4E494B53, dread.h:6), es la tabla de skinning del **siguiente** modelo: `skp[mdl_n] = data + 4`.
+   - Si no, es un MLB (binfunc.c:4-96): byte 3 = estado (0x80 = modelo Cnk), `u16` en +4 = tamaño de cabecera, `u16` en +6 = `obj_num`, `i32` en +8 = offset de la texlist, `i32` en +12 = offset de los objetos. Los `NJS_CNK_OBJECT` (0x34 B) llevan `child`/`sibling`/`model` como offsets, con -1 = NULL.
+2. **Animaciones de cuerpo:** `u32` de tamaño y un MNB por número de animación, terminado en -1; `size == 0` deja la ranura vacía (dread.c:85-118; binfunc.c:198-247).
+3. **Datos z:** `u32` de tamaño y entradas terminadas en -1. Los lee `bhGetTransZ` (player.c:7309-7337).
+4. **Texturas:** un bloque por cada modelo con `texP`: `u32` de tamaño (el bit 31 pide alinear a 32) y bloques de 32 B `{code, size}` con `TIM2`/`PLI`, terminados en -1 (dread.c:130-159; ps2_texture.c:82-302).
+
+Qué escribe `bhReadPlayerData`: copia los modelos a `sys->plmdlp`, las animaciones a `sys->plbmtp` y los datos z a `sys->plzmtp`; rellena `sys->plmthp[0..99]`, `sys->bmt_size` y `sys->hd_pos`; en `plp` pone `mlwP`, `mdl[]` (con `bhMlbBinRealize`), `mdl_n`, `skp[]`, `mbp[]`, `txp[]`, `mnwP`, `mnwPb` y los `owP`. Lee `plp->skp[mdl_n]` antes de decidir si llama a `npSkinConvert` (dread.c:62), así que depende de que `plp` esté a cero. `hd_pos`, `bmt_size` y `wmt_size` solo se escriben: nadie los lee.
+
+#### Contenido de los ficheros de Claire (comprobado con la ISO)
+
+| Modelo | `[10]` Claire | `[14]` Claire B |
+| --- | --- | --- |
+| 0, cuerpo | Cnk, 22 huesos, una sola malla con skin en el hueso 1, 5 texturas | Igual, con 6 texturas y otra geometría |
+| 1, 2 | Solo texlist: variantes de la cara para el parpadeo (`PlyEyeTab`, player.c:210, 6996) | Igual |
+| 3 | 22 huesos sin texturas: modelo de colisión (effsub2.c:2311) | Idéntico byte a byte |
+| 4, coleta | 4 huesos en cadena, con skin, 1 textura | Geometría idéntica byte a byte; otra textura |
+| 5 | 1 hueso; uso sin confirmar | No existe |
+| 6, 7 | Huevo y larva de polilla de `en27` (en27.c:62-66, 202; `bhCheckMothEgg`, player.c:1050) | No existen |
+
+- **Las animaciones de cuerpo de `[10]` y `[14]` son idénticas byte a byte** (251.472 B, 60 de 100 ranuras con datos), y también los datos z y la pose de reposo del esqueleto. Las animaciones de Claire sirven para Claire B.
+- Los cinco personajes comparten la jerarquía de 22 huesos: 0 raíz → 1 cadera (lleva la malla) → 2 → 3 columna → 4 pecho → 5 cabeza (`lkono` del pelo); brazo derecho 6-9 (9 = mano, `lkono` del arma derecha); brazo izquierdo 10-13 (13 = mano izquierda); piernas 14-17 y 18-21 (`PlyLegRoute`, `PlyFlip`, player.c:218-227). Los nombres son deducidos de las posiciones. Chris tiene otro banco de animaciones.
+- **El cuerpo no tiene manos:** la tabla de skin no tiene vértices en los huesos 0, 9 y 13. Las manos que se ven son los objetos de arma `sys->obwp[0/1]`, cargados del fichero de arma (ver [combat.md](combat.md)). Sus texturas reutilizan el índice 0x73 del cuerpo de Claire.
+- Texturas en el pool (únicas, no lo que ocupan en el fichero): Claire 276.480 B, Claire B 258.816 B. Usan índices globales distintos (0x65-0x6A/0x73/0x1B8A frente a 0x96-0x9C), así que las dos pueden estar cargadas a la vez. Ver el sistema de texturas en [world-systems.md](world-systems.md).
+
+#### Bits de `owP[i].flg` (`O_WORK` por hueso)
+
+| Bit | Efecto |
+| --- | --- |
+| `0x1` | `bhCalcTree` usa la matriz guardada (MdlPut.c:296) |
+| `0x2` | La animación no escribe el ángulo de ese hueso (Motion.c:168) |
+| `0x4` | La animación ignora el hueso (Motion.c:154; face.c:21-60) |
+| `0x8` | El ángulo se interpola en orden YZX en vez de ZYX (`SetMtnFastHokan`, Motion.c:552-568, 969-1010) |
+
+`bhSetPlayer` pone `0x8` en los brazos (`owP[7]` y `[11]`, player.c:858-859) sin condiciones, probablemente para que las mezclas de animación del hombro no den vueltas raras. **No interviene en el dibujo**: el dibujo solo mira `objP->evalflags & 0x8` (`NJD_EVAL_HIDE`) y `& 0x80000000` (MdlPut.c:130, 146-155).
 
 ### Cambio de personaje (Claire ↔ Chris)
 
@@ -147,7 +189,9 @@ Esto importa para el modo cooperativo.
 
 Si se ejecuta el código del jugador con otra instancia en `plp`, esto se ve afectado:
 
-- **Objetos globales:** `sys->obwp[0]` y `[1]` son las armas, enlazadas a `plp` en `bhSetWeapon` (weapon.c:128); `sys->obwp[2]` es el pelo o accesorio. La luz del mechero es `rom->lgtp[1]` (player.c:1459-1495).
+- **Objetos globales:** `sys->obwp[0]` y `[1]` son las armas, enlazadas a `plp` en `bhSetWeapon` (weapon.c:128); `sys->obwp[2]` es el pelo o accesorio. La luz del mechero es `rom->lgtp[1]` (player.c:1459-1495) y la del fogonazo `rom->lgtp[0]`.
+- **Pelo:** `bhObjClpn` (objitm.c:2122) toma su buffer de simulación de `sys->pletcp` si `op->lkwkp == plp` (objitm.c:2146-2150); si no, reserva unos 20 KB con `bhGetFreeMemory` por encima de `mempb`, que se pierden al cambiar de sala. Un objeto de pelo de otra instancia actualizado con `plp` apuntando a su dueño usaría el buffer del pelo de P1.
+- **Combate e inventario:** la munición vive en el inventario, a través del global `swork.pip`; `gm_flg 0x40000` marca "arma vacía"; y `bhCPM2_act_wpn` lee `ply.` directamente (player.c:4820-4829). Ver [combat.md](combat.md) e [inventory.md](inventory.md).
 - **Flags de `sys`:** `st_flg` (p. ej. `0x4`, player.c:1732), `gm_flg` (primera persona, mira), `cb_flg`.
 - **Otros campos de `sys`:** `sys->pl_htp` (escaleras) y la cámara `cam.*` (player.c:1783-1786). `sys->hd_pos` no lo toca el update: solo lo escribe `bhReadPlayerData` (dread.c:168).
 - `bhPushGameData`, llamado desde `bhSetPlayer`.

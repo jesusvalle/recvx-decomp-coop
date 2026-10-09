@@ -32,7 +32,8 @@ Las entidades de la sala salen de `rom->enep` en `bhSetRoom` → `bhSetEneMdl` (
 - **Ayudas compartidas que usan `plp`:** zonzon.c, zonzon1.c, `bhSearchPlayer` (pwksub.c:664) y `bhCheckPlayer` (hitchk.c:5712).
 - **Ayudas que reciben parámetros:** `bhEne_AttackHitCheck` (zonzon1.c:611) y `bhCheckRoute` (rutchk.c:5).
 - **Agarres:** los `_PlayerControl` / `_Nage` mueven a `plp` y escriben `sys->pad_on`.
-- **Disparos del jugador:** el apuntado automático y los impactos buscan entradas de `ene[]` con `flg & 0x20` (playpch.c:350, weapon.c ~620).
+- **Disparos del jugador:** el apuntado automático y los impactos buscan entradas de `ene[]` con `flg & 0x20` (playpch.c:349, weapon.c:615-619). Detalle en [combat.md](combat.md).
+- **Del impacto a la IA:** el disparo (`bhCheckGunAtari`) solo anota el impacto en el enemigo (`flg |= 0x4`, `dpx/dpy/dpz`, `dvx/dvy/dvz`, `dam[]`…). El enemigo lo procesa en su siguiente update y borra `flg 0x4`; después su IA usa `plp` (ejemplos: en01.c:8228, en05.c:3032). Solo cuenta un impacto por enemigo y frame. Ver [combat.md](combat.md).
 
 ## Catálogo
 

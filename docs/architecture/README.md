@@ -1,6 +1,6 @@
 # Arquitectura del motor (RE: Code Veronica X, PS2)
 
-Mapa para moverse por el código del juego. Todo está comprobado contra el código salvo lo marcado como "probable", "deducido" o "sin confirmar". Las rutas son relativas a `src/ps2/veronica/prog/` salvo que se indique otra cosa. Los números de línea son de octubre de 2026: si un cambio los desplaza, busca por el nombre de la función.
+Mapa para moverse por el código del juego. Todo está comprobado contra el código salvo lo marcado como "probable", "deducido" o "sin confirmar". Las rutas son relativas a `src/ps2/veronica/prog/` salvo que se indique otra cosa. Los números de línea de este README, de [combat.md](combat.md) y de [inventory.md](inventory.md) son del árbol de trabajo con los ganchos del cooperativo (octubre de 2026). En los demás documentos pueden estar unas 4-8 líneas por encima en los archivos con ganchos (player.c, system.c, room.c, dread.c, game.c). Si no cuadran, busca por el nombre de la función.
 
 ## Documentos
 
@@ -12,6 +12,8 @@ Mapa para moverse por el código del juego. Todo está comprobado contra el cód
 | [input.md](input.md) | Del mando físico a `sys->pad_*`, bits lógicos y quién lee la entrada |
 | [rooms-and-memory.md](rooms-and-memory.md) | Memoria, `SYS_WORK` y guardado, `ROM_WORK`, el cargador, la carga de sala y las puertas |
 | [world-systems.md](world-systems.md) | Cámaras, colisión, objetos, luces, sombras, dibujo y sonido, con su dependencia de un único jugador |
+| [combat.md](combat.md) | Apuntar, disparar, munición, objetos de arma (`obwp`), `WPN_TAB` y daño a enemigos |
+| [inventory.md](inventory.md) | `sys->itm`, inventario y pantalla de estado, baúles, máquina de escribir, equipar armas |
 | [enemies-and-npcs.md](enemies-and-npcs.md) | `ene[128]`, alta de entidades, catálogo de enemigos y NPCs por guion (`subpl`) |
 | [events-and-flags.md](events-and-flags.md) | Scripts de evento y glosario de flags de `SYS_WORK` / `BH_PWORK` |
 
@@ -35,24 +37,29 @@ El proyecto cooperativo tiene su propio documento: [../coop/README.md](../coop/R
 | Busco… | Función | Dónde |
 | --- | --- | --- |
 | Tabla de tareas / bucle | `bhSysTaskJumpTab`, `njUserMain` | main.c:60, :189 |
-| Un frame de juego | `bhMainSequence` | game.c:20 |
-| Orden de dibujo | `bhAllDrawModel` | game.c:318 |
-| Partida nueva | `bhFirstGameStart` | system.c:416 |
-| Cargador (partida, sala, personaje) | `bhSysCallMonitor` | system.c:1305 |
-| Carga de sala | `bhInitReadRDT`, `bhSetRoom`, `bhFinishRoom` | room.c:28, :47, :337 |
-| Instantánea para reintentar | `bhPushGameData`, `bhPopGameData` | room.c:1016, :1037 |
-| Puertas | `bhSetDoorDemo`, `bhStartDoorDemo` | room.c:883, :940 |
-| Init del jugador | `bhInitPlayer`, `bhSetPlayer`, `bhInitRoomChangePlayer` | player.c:635, :689, :855 |
-| Update del jugador | `bhControlPlayer` | player.c:1349 |
-| Estados del jugador | `bhCtrPly_mode0[]`, `bhCPM0_action`, `bhCPM1_act_bas`, `bhCPM1_act_atk` | player.c:1333, :1777, :1957, :4481 |
-| Movimiento según el mando | `bhControlPlayerPad` | player.c:1820 |
-| Muerte del jugador | `bhCPM0_die` | player.c:6346 |
+| Un frame de juego | `bhMainSequence` | game.c:24 |
+| Orden de dibujo | `bhAllDrawModel` | game.c:325 |
+| Partida nueva | `bhFirstGameStart` | system.c:420 |
+| Cargador (partida, sala, personaje) | `bhSysCallMonitor` | system.c:1313 |
+| Carga de sala | `bhInitReadRDT`, `bhSetRoom`, `bhFinishRoom` | room.c:32, :51, :341 |
+| Instantánea para reintentar | `bhPushGameData`, `bhPopGameData` | room.c:1024, :1045 |
+| Puertas | `bhSetDoorDemo`, `bhStartDoorDemo` | room.c:891, :948 |
+| Init del jugador | `bhInitPlayer`, `bhSetPlayer`, `bhInitRoomChangePlayer` | player.c:639, :697, :863 |
+| Update del jugador | `bhControlPlayer` | player.c:1357 |
+| Estados del jugador | `bhCtrPly_mode0[]`, `bhCPM0_action`, `bhCPM1_act_bas`, `bhCPM1_act_atk` | player.c:1341, :1785, :1965, :4489 |
+| Movimiento según el mando | `bhControlPlayerPad` | player.c:1828 |
+| Muerte del jugador | `bhCPM0_die` | player.c:6354 |
 | Jugador en cinemática | `bhCPM0_event` | pl_evt.c:62 |
-| Carga de modelo y arma | `bhReadPlayerData`, `bhReadWeaponData` | dread.c:13, :170 |
+| Carga de modelo y arma | `bhReadPlayerData`, `bhReadWeaponData` | dread.c:17, :178 |
 | Apuntar y disparar | `PlyPchMain`, `CheckGunHit`, `bhCheckGunAtari` | playpch.c:18, :1130; weapon.c:473 |
 | Objetos de arma | `bhSetWeapon` | weapon.c:128 |
+| Objetos de arma y pelo en la sala | `bhSetObject`, `bhObjClpn` | objitm.c:154, :2122 |
+| Munición | `bhCheckBullet`, `bhCountBullet`; `bhSearchBullet` | weapon.c:421, :439; sub1.c:8862 |
+| Equipar un arma | `WeaponSet` | sub1.c:4456 |
+| Objetos iniciales de cada personaje | `AllItemInit` | sub1.c:8440 |
+| Abrir y cerrar el inventario | `ItemTaskCheck` (la petición sale de `bhCheckSubTask`) | sub1.c:3025; system.c:568 |
 | Mando lógico | `bhSetPad` | pad.c:17 |
-| Mando físico | `Pad_init`, `Ps2_pad_read`, `pdGetPeripheral` | ps2_sg_pad.c:634, :182, :69 |
+| Mando físico | `Pad_init`, `Ps2_pad_read`, `pdGetPeripheral` | ps2_sg_pad.c:646, :194, :74 |
 | Enemigos | `bhControlEnemy`, `bhSetEnemy`, `bhDrawEnemy`, `bhJumpEnemy[]` | eneset.c:344, :170, :797, :51 |
 | Callback de entidad | `bhEne_SetCallFunc`, `bhEne_CallocWork` | eneset.c:933, :906 |
 | NPC de guion | `bhSubpl` | subpl.c:76 |
