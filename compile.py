@@ -174,6 +174,9 @@ def run_command(command: list[str], extra_env: list[dict] = None) -> bool:
     if IS_LINUX and command[0].endswith('.exe'):
         command = ['wibo'] + command
 
+    # Windows' CreateProcess can't find relative executables written with '/'
+    command = [str(Path(command[0]))] + command[1:]
+
     extra = list()
     if VERBOSE_PRINT:
         msg = ""

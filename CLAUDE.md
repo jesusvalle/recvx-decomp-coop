@@ -1,0 +1,121 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Qué es este repo
+
+Decompilación "matching" de **Resident Evil: Code Veronica X** para PS2 (versión US, `SLUS_201.84`). El juego entero está reconstruido en C: no queda ASM sin decompilar en `src/ps2/veronica/prog/`. El ejecutable se recompila con MWCC (Metrowerks CodeWarrior para PS2), se mete en la ISO original y se prueba en PCSX2.
+
+Este clon es el **fork del usuario para hacer un modo cooperativo** (segundo jugador con el mando 2). Decisiones, alcance del hito actual y riesgos: [docs/coop/README.md](docs/coop/README.md). El usuario escribe en español.
+
+Lo específico de la máquina del usuario (rutas del emulador y del SDK) está en `CLAUDE.local.md`, que no se sube.
+
+### Remotos
+
+- `origin` = `jesusvalle/recvx-decomp-coop`, el fork, que es **público**: no subas ISOs, ejecutables del juego ni el SDK.
+- `upstream` = `AshfordFamily/recvx-decomp`, el original.
+
+`master` es una copia exacta del original: no se hacen commits en ella. El trabajo va en ramas (`coop-hito1`…). La rama por defecto del fork en GitHub es `coop-hito1`, para que se vea el aviso del `README.md` (fork experimental hecho con IA); si se cambia de rama de trabajo, cambia también la rama por defecto. Para traer cambios del original: `git fetch upstream`, `git merge upstream/master` en `master`, `git push origin master` y, después, `git merge master` en la rama (merge, no rebase: las ramas ya están subidas). Compila después de cada actualización: si el original renombra algo que usa `coop.c`, el merge sale limpio pero la compilación falla.
+
+## Documentación de arquitectura
+
+El conocimiento del motor está en [docs/architecture/](docs/architecture/README.md). Empieza por su README, que tiene una tabla de "¿dónde está…?", los globales, las convenciones de nombres y recetas de búsqueda.
+
+**Mantenlo al día:** si descubres algo del motor que no esté documentado, o una referencia `archivo:línea` que ha quedado mal, corrige el documento correspondiente en el mismo cambio. Cuando avance el cooperativo, actualiza la tabla de estado y las decisiones de `docs/coop/README.md`.
+
+## Puesta en marcha
+
+Pasos para montar el entorno desde cero:
+
+1. `git submodule update --init --recursive`. Trae `include/recvx-decomp-mwcc` (el compilador), `-katana` y `-cri`.
+2. El SDK de PS2, que no viene en el repo. El 2.0.0 va en `include/recvx-decomp-ps2_sdk/` y el 3.0.3 en `include/recvx-decomp-ps2_sdk303/`. Las rutas exactas están en `compile_config.json`.
+3. Copiar `SLUS_201.84` del disco a `config/`.
+4. `pip install -r config/requirements.txt` (instala splat). Hay alternativa con dev container en `.devcontainer/`.
+5. `python compile.py --setup`: genera `objdiff.json`, `build/expected/` y `config/asm/`.
+
+En Linux hace falta `wibo` para ejecutar `mwccps2.exe`.
+
+### Estado del entorno (Windows, verificado el 2026-10-09)
+
+Todo montado y probado. **Usa el build por defecto (SDK 2.0 + librerías originales embebidas), no `--sdk303`.** El ejecutable compilado sin cambios juega en PCSX2 con los vídeos funcionando.
+
+- **Python:** usa `.venv/Scripts/python.exe`; el Python del sistema no tiene splat.
+- **SDK, PCSX2 y rutas locales:** en `CLAUDE.local.md`.
+- **Arreglo para Windows:** `compile.py` lleva 3 líneas en `run_command` (no están en el original) para que Windows encuentre los ejecutables con rutas relativas.
+- **ISO:** la original está en `iso/` y extraída en `iso/data/`.
+- **El ELF no es idéntico byte a byte al retail** (CRC de PCSX2 `D20D9EC2` frente a `24036809`). Es normal: el proyecto reproduce cada función, no el archivo entero.
+
+**`--sdk303` deja los vídeos en negro.** Dos causas:
+
+1. El `ioprp300.img` delega el streaming de CD en el dispositivo `cdrom_stm0:` de `cdvdstm.irx`, y el juego nunca carga ese módulo. El IOP muestra `Unknown device 'cdrom_stm'` y `sceCdStRead` no devuelve datos.
+2. `libmpeg` 3.0.3 exige `w*h*9/2 + 10240` bytes de trabajo. `initAll` (ps2_MovieFunc.c:69) pasa 508928 fijos, que es el requisito de `libmpeg` 2.0 para los vídeos de 320x352 (`MV_000`, `014`, `016`, `021`).
+
+## Comandos
+
+En esta máquina, `python` = `.venv/Scripts/python.exe`.
+
+```sh
+python compile.py                    # compila y enlaza → elf/main.elf (errores en elf/report.txt; los avisos de const son normales)
+python compile.py --verbose          # muestra cada comando
+python compile.py --single-file build/src/ps2/veronica/prog/player.o   # compila un objeto sin enlazar (lo usa objdiff)
+python compile.py --progress         # compila también los objetos esperados y genera report.json con objdiff-cli
+python compile.py --sdk303           # con el SDK 3.0.3: los vídeos no funcionan, no usar
+
+python mkiso.py -m extract --iso "iso/Resident Evil Code Veronica X.iso"   # extrae la ISO (ya hecho)
+python mkiso.py -m insert            # mete elf/main.elf como SLUS_201.84 → iso/RECVX_NEW.iso (sin --sdk303)
+```
+
+Si cambias de SDK (de 2.0 a 3.0.3 o al revés), borra antes `build/src/`. La compilación incremental no detecta el cambio de cabeceras.
+
+Para arrancar el juego en PCSX2: `pcsx2-qt.exe -fastboot -- iso/RECVX_NEW.iso` (la ruta del emulador y el comando completo están en `CLAUDE.local.md`).
+
+El teclado no está asignado a ningún mando: para pasar del título hace falta que el usuario juegue con el suyo.
+
+**No hay tests automáticos.** Para comprobar un cambio: compilar sin errores, generar `RECVX_NEW.iso` y probarlo en PCSX2. Los cambios que afectan al mando 2 necesitan dos mandos configurados en PCSX2. Para saber si una función sigue siendo idéntica al original se usa objdiff con `objdiff.json`.
+
+## Reglas para cambiar código
+
+- **Código cooperativo detrás de `#ifdef COOP`**, preferiblemente en archivos nuevos. Compilando sin `COOP`, el código del juego debe salir idéntico al del build sin el mod (se comprueba con objdiff). Con `--sdk303` el ejecutable nunca es idéntico byte a byte al retail, porque cambian las librerías. Los defines globales se añaden a la lista `"defines"` de `compile_config.json` (ahora tiene `DEBUG` y `COOP`).
+- **Un `.c` nuevo hay que añadirlo a `"source_files"`** de `compile_config.json`. Si está en `src/ps2/veronica/prog/` usa automáticamente MWCC con `sdata = 0` (`source_overrides`). El enlazado es reubicable (`config/SLUS_201.84.lcf`, `ORIGIN 0x100000`, heap `AFTER(main)`), así que añadir código no rompe direcciones.
+- **No cambies la estructura de `SYS_WORK` ni de `BH_PWORK`.** El rango `sys->version..save_end` es el formato de la partida guardada, del reintento y de las demos (se copia en bruto). Además, `bhInitSystem` borra un tamaño escrito a mano. El estado nuevo va en globales nuevas.
+- **Imita el estilo del archivo que tocas.** Las variables se declaran al principio de la función y los flags se escriben en hex. Las llaves varían según el archivo (Allman en la mayoría; K&R en algunas funciones como `bhAllDrawModel`). Los comentarios `// 100% matching!` se reservan para funciones originales.
+- Si algún día se manda código al repo original (AshfordFamily/recvx-decomp), su README pide declarar el código generado por IA.
+
+## Cooperativo (código)
+
+- **Dónde está:**
+  - `src/ps2/veronica/prog/coop.c` + `include/ps2/veronica/prog/coop.h`;
+  - el bloque `#ifdef COOP` al final de `ps2_sg_pad.c` (lectura del puerto 2);
+  - 7 ganchos de una línea (G1-G7), listados en [docs/coop/README.md](docs/coop/README.md).
+- **Cómo funciona:** P2 es `BH_PWORK ply2`. Se actualiza con el `bhControlPlayer()` original dentro de `coopBegin()`/`coopEnd()`, que intercambian el mando, ponen `plp = &ply2`, y guardan y restauran `st_flg`, `cb_flg`, `gm_flg`, `pt_flg`, `flr_idx`, `etc_idx`, `pl_htp`, `door` y `cam`.
+- **Regla:** cualquier llamada nueva que use `plp` por dentro (por ejemplo `bhCheckWallEx`) sobre P2 va dentro de ese contexto.
+- **Activar o desactivar:** `"COOP"` en `defines` de `compile_config.json`. Al cambiarlo, borra `build/src/`.
+- **Spec y plan del hito 1:** `docs/superpowers/specs/` y `docs/superpowers/plans/`.
+
+## Modelo mental del motor
+
+- **Globales** (main.c): `sys` (`SYS_WORK*`: flags, mando, memoria, partida), `rom` (`ROM_WORK*`: tablas de la sala), `ply` + **`plp`** (el jugador), `ene[128]` (enemigos y NPCs), `eff[512]`, `cam`.
+- **Bucle:** `njUserMain` ejecuta las tareas de `bhSysTaskJumpTab[23]` cuyo bit está activo en `sys->tk_flg` y no suspendido en `ts_flg`. Un frame de juego es `bhMainSequence` (game.c:20): enemigos → jugador → efectos → objetos → cámara → luz → dibujo. Los scripts de evento van en la tarea 8.
+- **`BH_PWORK`** es la entidad universal (jugador, enemigos, NPCs), con una máquina de estados `mode0..mode3` y bloques extra `exp0..exp3`.
+- **El jugador es un global.** Casi todo player.c son funciones `void f(void)` que usan `plp` y leen el mando de `sys->pad_*`. `sys->plp` existe pero nadie lo lee.
+- **Memoria:** asignador lineal (`bhGetFreeMemory` avanza `sys->memp`). Al cambiar de sala vuelve a `sys->mempb`: lo que está debajo de `mempb` (los buffers del jugador) sobrevive; `ene[]`, `eff[]` y todo lo demás se pierde.
+- **Flags:** son literales hex sin nombre (`sys->sp_flg & 0x1` = el jugador se actualiza). Glosario en [docs/architecture/events-and-flags.md](docs/architecture/events-and-flags.md).
+
+## Trampas conocidas
+
+- `pdGetPeripheral(port)` devuelve un único periférico estático y solo refresca una vez por frame. El puerto 1 nunca se lee (`Ps2_pad_read` está fijado al 0).
+- `bhMlbBinRealize` reubica punteros sobre los propios datos: no hay que llamarlo dos veces sobre el mismo binario.
+- La pose de animación se escribe en el árbol de huesos del modelo (`objP`). Dos instancias no pueden compartir ese árbol.
+- Varias funciones reciben un `BH_PWORK*` pero leen `plp` igualmente: `bhCheckFloorP`, el daño de `bhCheckWall*` y `bhCheckExmAtari`.
+- Los ids de entidad 31-38 de `bhJumpEnemy[]` los sustituyen algunos enemigos al inicializarse.
+- Los números de línea de `docs/` pueden desplazarse con los cambios: busca por el nombre de la función.
+- **MWCC no es determinista con `ps2_SystemSaveScreen.c` ni con `player.c`**:
+  - en `ps2_SystemSaveScreen.c` (`DispSysSaveMessageSelect`) cambia el orden de dos constantes float;
+  - en `player.c` (`bhCPM2_act_wlk`) cambia el registro float elegido (`$f12`/`$f13`). Seis compilaciones del mismo fuente dieron cuatro objetos distintos.
+
+  Para comparar dos ELF byte a byte, borra el `.o` y recompila hasta que coincida (`rm build/src/ps2/veronica/prog/player.o` y `compile.py`). Compara solo los segmentos `PT_LOAD`; la información de depuración cambia con cualquier línea nueva.
+- **Con el build por defecto (SDK 2.0), los `printf` del juego no salen en el log de PCSX2**, ni con la consola del EE ni con la del IOP. Para verificar en tiempo de ejecución, usa capturas y el log propio de PCSX2 (por ejemplo, `Pad: DS2 Config Finished - P2/S1` demuestra que se sondea el puerto 2).
+- **El puerto 2 solo se lee durante el juego**, porque la tarea 6 (`bhSysCallPad`) no está activa en logos ni en el título. Nadie más llama a `pdGetPeripheral(1)`.
+- **`mkiso.py -m insert` falla en silencio si PCSX2 tiene abierta `iso/RECVX_NEW.iso`.** Cierra PCSX2 antes y comprueba que la fecha de la ISO es posterior a la de `elf/main.elf`.
+- **`plp->flg & 0x10000` no significa "controlado por guion"**: lo ponen también la animación de espera, el empuje y el daño. Para detectar guiones usa `mode0 == 7`.
+- **Pruebas automáticas en PCSX2:** se pueden añadir asignaciones de teclado a `[Pad1]`/`[Pad2]` de `PCSX2.ini` (líneas extra con la misma clave, sin quitar los mandos), enviar teclas con `keybd_event` a la ventana y capturar con `PrintWindow`. Haz copia del ini y restáuralo al acabar. **No pulses Alt** para dar el foco: Alt+Enter cambia a pantalla completa.

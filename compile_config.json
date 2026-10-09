@@ -64,7 +64,8 @@
     "include_comp": "3.2-ee-040921"
   },
   "defines": [
-    "DEBUG"
+    "DEBUG",
+    "COOP"
   ],
   "libs": ["-lgcc", "-lgraph", "-ldma", "-ldev", "-lpkt", "-lpad", "-lvu0", "-lkernl", "-lc", "-lmc", "-lcdvd", "-lm", "-lssyn", "-lsdr", "-lmpeg", "-lipu"],
   "source_overrides": {
@@ -450,6 +451,7 @@
       "src/cri/mwlib/ee/lib/libadxe/sj_utl.c",
       "src/cri/mwlib/ee/lib/libadxe/sjr_clt.c",
       "src/cri/mwlib/ee/lib/libadxe/sjx.c",
-      "src/ps2/veronica/prog/ps2_pxlconv.c"
+      "src/ps2/veronica/prog/ps2_pxlconv.c",
+      "src/ps2/veronica/prog/coop.c"
   ]
 }

@@ -36,6 +36,10 @@
 #include "../../../ps2/veronica/prog/sync.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 //#include <string.h>
 
 static unsigned char FileWait;
@@ -533,6 +537,10 @@ void bhSysCallPad()
         sys->pad_on &= 0x1188F; 
         sys->pad_ps &= 0x1188F; 
     }
+
+#ifdef COOP
+    coopSetPad2();
+#endif
 } 
 
 // 100% matching! 

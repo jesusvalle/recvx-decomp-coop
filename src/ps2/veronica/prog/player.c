@@ -19,6 +19,10 @@
 #include "../../../ps2/veronica/prog/sdfunc.h"
 #include "../../../ps2/veronica/prog/weapon.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 ETTY_WORK lkmtab[2] = 
 {
     { 129, 1211, 0, 0, 4, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, { 0, 0, 0, 0 } },
@@ -655,6 +659,10 @@ void bhInitPlayer()
     plp->exp0 = sys->plexwp;
     plp->exp1 = sys->plhdwp;
     plp->exp3 = sys->pletcp;
+
+#ifdef COOP
+    coopInitMemory();
+#endif
     
     sys->mempb = sys->memp;
     
