@@ -16,6 +16,10 @@
 #include "../../../ps2/veronica/prog/ps2_dummy.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 // 100% matching! 
 void bhMainSequence()
 {
@@ -47,6 +51,9 @@ void bhMainSequence()
         
         bhControlEnemy();
         bhControlPlayer();
+#ifdef COOP
+        coopControlPlayer2();
+#endif
         bhControlEffect();
         bhControlObjItm();
             
@@ -368,6 +375,9 @@ void bhAllDrawModel()
             }
         }
     }
+#ifdef COOP
+    coopDrawPlayer2();
+#endif
     if ((rom->mdl.texP != 0) && !(sys->error & 2)) {
         njSetTexture(rom->mdl.texP);
     }

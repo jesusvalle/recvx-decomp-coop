@@ -18,6 +18,10 @@
 #include "../../../ps2/veronica/prog/system.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 // 100% matching! 
 void bhInitRoom()
 {
@@ -553,6 +557,10 @@ void bhFinishRoom()
     sys->rcase_b = sys->rcase;
     
     sys->ts_flg |= 0x180;
+
+#ifdef COOP
+    coopRoomStart();
+#endif
 }
 
 // 100% matching!

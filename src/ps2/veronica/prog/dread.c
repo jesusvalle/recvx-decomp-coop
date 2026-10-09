@@ -7,6 +7,10 @@
 #include "../../../ps2/veronica/prog/weapon.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 /*char* mshp_tab[16]; - unused*/
 
 // 100% matching!
@@ -164,6 +168,10 @@ void bhReadPlayerData()
     sys->hd_pos = *(NJS_POINT3*)&plp->mlwP->objP[5].pos;
     
     sys->memp = mempb;
+
+#ifdef COOP
+    coopCloneModel();
+#endif
 }
 
 // 100% matching! 

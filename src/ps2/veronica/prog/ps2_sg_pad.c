@@ -4,6 +4,11 @@
 #include "../../../ps2/veronica/prog/ps2_sg_pdvib.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include <stdio.h>
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 static u_long128 Padd1[scePadDmaBufferMax] __attribute__((aligned(64)));
 static u_long128 Padd2[scePadDmaBufferMax] __attribute__((aligned(64)));
 static unsigned char ChkCnt;
@@ -73,6 +78,13 @@ const PDS_PERIPHERAL* pdGetPeripheral(Uint32 port)
     PAD_WORK *pad_wk; 
     unsigned char *pad_data; 
     int temp; // not from the debugging symbols
+
+#ifdef COOP
+    if (port == 1)
+    {
+        return coopGetPeripheral2();
+    }
+#endif
 
     pad_wk = &Ps2_pad.pad1;
     
@@ -638,3 +650,197 @@ void Pad_init()
     scePadPortOpen(0, 0, Padd1);
     scePadPortOpen(1, 0, Padd2);
 }
+
+#ifdef COOP
+static PAD_STATUS Pad_status2 = { 0, 0, { 0, 0 }, 0, { 0, 1, 255, 255, 255, 255, 0, 0 } };
+static unsigned int Coop_pad2_cnt = 0xFFFFFFFF;
+static int Coop_pad2_conn;
+
+static void Coop_pad_read2(void)
+{
+    unsigned int info;
+
+    Pad_state[1] = scePadGetState(1, 0);
+
+    if ((Pad_state[1] == 6) || (Pad_state[1] == 2))
+    {
+        if ((Pad_status2.be_flag & 0x1))
+        {
+            info = Pad_status2.type;
+
+            if (info != scePadInfoMode(1, 0, 1, 0))
+            {
+                Pad_status2.be_flag = 0;
+                Pad_status2.routine_0 = 0;
+            }
+
+            scePadRead(1, 0, Pad_rdata2);
+        }
+        else
+        {
+            switch (Pad_status2.routine_0)
+            {
+            case 0:
+                info = scePadInfoMode(1, 0, 1, 0);
+
+                if ((info == 7) || (info == 4))
+                {
+                    Pad_status2.routine_0 = 1;
+                    Pad_status2.be_flag |= 0x2;
+                }
+                break;
+            case 1:
+                info = scePadInfoMode(1, 0, 2, 0);
+
+                if (info == 2)
+                {
+                    Pad_status2.be_flag |= 0x8;
+                }
+
+                Pad_status2.routine_0 = 2;
+                break;
+            case 2:
+                if (scePadSetMainMode(1, 0, 1, 3) == 1)
+                {
+                    Pad_status2.routine_0 = 3;
+                }
+                break;
+            case 3:
+                info = scePadGetReqState(1, 0);
+
+                if (info == 1)
+                {
+                    Pad_status2.routine_0 = 2;
+                }
+                else if (info == 0)
+                {
+                    Pad_status2.routine_0 = 4;
+                    Pad_status2.be_flag |= 0x10;
+                }
+                break;
+            case 4:
+                if (scePadSetActAlign(1, 0, Pad_status2.act_data) != 0)
+                {
+                    Pad_status2.routine_0 = 5;
+                }
+                break;
+            case 5:
+                info = scePadGetReqState(1, 0);
+
+                if (info == 1)
+                {
+                    Pad_status2.routine_0 = 4;
+                }
+                else if (info == 0)
+                {
+                    Pad_status2.routine_0 = 6;
+                    Pad_status2.be_flag |= 0x20;
+                }
+                break;
+            case 6:
+                if (scePadInfoMode(1, 0, 1, 0) == 7)
+                {
+                    Pad_status2.be_flag |= 0x4;
+                }
+
+                Pad_status2.routine_0 = 7;
+                break;
+            case 7:
+                if ((scePadInfoPressMode(1, 0) != 0) && (scePadEnterPressMode(1, 0) != 0))
+                {
+                    Pad_status2.be_flag |= 0x4;
+                    Pad_status2.routine_0 = 8;
+                }
+                break;
+            case 8:
+                info = scePadGetReqState(1, 0);
+
+                if (info == 1)
+                {
+                    Pad_status2.routine_0 = 7;
+                }
+                else if (info == 0)
+                {
+                    Pad_status2.routine_0 = 9;
+                }
+                break;
+            case 9:
+                Pad_status2.be_flag |= 0x1;
+                Pad_status2.type = scePadInfoMode(1, 0, 1, 0);
+                Pad_status2.routine_0 = 0;
+                break;
+            }
+
+            *(unsigned short*)(Pad_rdata2 + 2) = 65535;
+        }
+    }
+    else
+    {
+        if (Pad_state[1] == 0)
+        {
+            Pad_status2.routine_0 = 0;
+            Pad_status2.be_flag = 0;
+        }
+
+        *(unsigned short*)(Pad_rdata2 + 2) = 65535;
+        *(int*)(Pad_rdata2 + 4) = 0x80808080;
+    }
+
+    if (!(Pad_status2.be_flag & 0x4))
+    {
+        *(int*)(Pad_rdata2 + 4) = 0x80808080;
+    }
+
+    *(unsigned short*)(Pad_rdata2 + 2) ^= 65535;
+    *(unsigned int*)(Pad_rdata2 + 4) ^= 0xFFFFFFFF;
+
+    Pad_set(&Ps2_pad.pad2, 2);
+}
+
+const PDS_PERIPHERAL* coopGetPeripheral2(void)
+{
+    static PDS_PERIPHERALINFO pp_info;
+    static PDS_PERIPHERAL pp;
+    int conn;
+
+    if (Ps2_sys_cnt != Coop_pad2_cnt)
+    {
+        Coop_pad2_cnt = Ps2_sys_cnt;
+
+        Coop_pad_read2();
+
+        pp.id = Pad_rdata2[1] / 16;
+        pp.support = 55541;
+        pp.on = Ps2_pad.pad2.on;
+        pp.off = ~Ps2_pad.pad2.on;
+        pp.press = Ps2_pad.pad2.push;
+        pp.release = Ps2_pad.pad2.release;
+        pp.l = Pad_rdata2[16];
+        pp.r = Pad_rdata2[17];
+        pp.x1 = Pad_rdata2[6] - 128;
+        pp.y1 = Pad_rdata2[7] - 128;
+        pp.x2 = 0;
+        pp.y2 = 0;
+        pp.name = NULL;
+        pp.old = 0;
+        pp_info.type = 1;
+        pp.info = &pp_info;
+
+        conn = (((Pad_state[1] == 6) || (Pad_state[1] == 2)) && (Pad_status2.be_flag & 0x1)) ? 1 : 0;
+
+        if (conn != Coop_pad2_conn)
+        {
+            Coop_pad2_conn = conn;
+
+            printf("[COOP] mando 2 %s\n", (conn != 0) ? "conectado" : "desconectado");
+        }
+    }
+
+    if (Coop_pad2_conn == 0)
+    {
+        return NULL;
+    }
+
+    return &pp;
+}
+#endif
