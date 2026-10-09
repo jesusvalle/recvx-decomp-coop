@@ -1,5 +1,10 @@
 # recvx-decomp
 
+> [!WARNING]
+> **This is a fork: [recvx-decomp-coop](https://github.com/jesusvalle/recvx-decomp-coop).** It's a personal experiment in AI-assisted development: an attempt to add a two-player co-op mode (second player on controller 2) on top of the decompilation, with the code written with the help of AI (Claude). It's a testing project: there's no commitment to keep working on it, and it may never become playable.
+>
+> The decompilation itself is the work of [AshfordFamily/recvx-decomp](https://github.com/AshfordFamily/recvx-decomp), and the rest of this README is theirs. The co-op code is behind `#ifdef COOP` and is documented (in Spanish) in [docs/coop/](docs/coop/README.md).
+
 [![Build Status]][actions] [![Code Progress]][progress] [![Data Progress]][progress] 
 
 [Build Status]: https://github.com/AshfordFamily/recvx-decomp/actions/workflows/progress.yml/badge.svg

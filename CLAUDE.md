@@ -15,7 +15,7 @@ Lo específico de la máquina del usuario (rutas del emulador y del SDK) está e
 - `origin` = `jesusvalle/recvx-decomp-coop`, el fork, que es **público**: no subas ISOs, ejecutables del juego ni el SDK.
 - `upstream` = `AshfordFamily/recvx-decomp`, el original.
 
-`master` es una copia exacta del original: no se hacen commits en ella. El trabajo va en ramas (`coop-hito1`…). Para traer cambios del original: `git fetch upstream`, `git merge upstream/master` en `master`, `git push origin master` y, después, `git merge master` en la rama (merge, no rebase: las ramas ya están subidas). Compila después de cada actualización: si el original renombra algo que usa `coop.c`, el merge sale limpio pero la compilación falla.
+`master` es una copia exacta del original: no se hacen commits en ella. El trabajo va en ramas (`coop-hito1`…). La rama por defecto del fork en GitHub es `coop-hito1`, para que se vea el aviso del `README.md` (fork experimental hecho con IA); si se cambia de rama de trabajo, cambia también la rama por defecto. Para traer cambios del original: `git fetch upstream`, `git merge upstream/master` en `master`, `git push origin master` y, después, `git merge master` en la rama (merge, no rebase: las ramas ya están subidas). Compila después de cada actualización: si el original renombra algo que usa `coop.c`, el merge sale limpio pero la compilación falla.
 
 ## Documentación de arquitectura
 
