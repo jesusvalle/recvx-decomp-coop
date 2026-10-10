@@ -26,23 +26,23 @@ freemem
 ├─ modelos de efectos de SYSTEM.AFS[1] (~9 KB)                          effect.c:42-110
 ├─ buffers fijos del jugador (741.632 B)                                bhInitPlayer, player.c:639-653
 ├─ (build COOP) memoria de P2 (65.792 B)                                coopInitMemory
-├─ sys->mempb  ◄── marca: todo lo de debajo sobrevive a los cambios de sala (~1,16 MB con COOP, deducido)
+├─ sys->mempb  ◄── marca: todo lo de debajo sobrevive a los cambios de sala (medido con COOP del hito 2a en la sala 0-1: `mempb − freemem` ≈ 1,16 MB; `endp − mempb` = 11.094.656 B)
 ├─ datos de la sala actual (modelos, enemigos, efectos, PP_WORK...)     se asignan avanzando sys->memp
 ├─ ...
 ├─ Ps2_PXLCONV: últimos 320 KB por debajo de endp                       main.c:140; zona de trabajo de cada carga de TIM2 (ps2_pxlconv.c:15)
 └─ sys->endp
 ```
 
-**Al cambiar de sala**, el cargador hace `sys->memp = sys->mempb` (system.c:1523): todo lo asignado después de `mempb` se pierde. Si hace falta memoria persistente nueva (por ejemplo, para un segundo jugador), hay que reservarla antes de que `bhInitPlayer` fije `mempb` (player.c:663), o usar arrays estáticos. `sys->lmmdlp` (32 KB, por debajo de `mempb`) no lo usa nadie.
+**Al cambiar de sala**, el cargador hace `sys->memp = sys->mempb` (system.c:1523): todo lo asignado después de `mempb` se pierde. Si hace falta memoria persistente nueva (por ejemplo, para un segundo jugador), hay que reservarla antes de que `bhInitPlayer` fije `mempb` (player.c:663), o usar arrays estáticos. `sys->lmmdlp` (32 KB, por debajo de `mempb`) no lo usa el juego; desde el hito 2a lo usa coop.c (buffers de la coleta de P2 y huesos de sus manos).
 
 **`bhGetFreeMemory` solo comprueba el tamaño total del pool (12.845.056, pwksub.c:22), no `endp`**: puede pisar `np.buff` sin devolver `NULL`. Además, casi ningún llamador comprueba el `NULL`.
 
 `bhGetFreeMemory` imprime "malloc area = %x" (pwksub.c:33). El primer mensaje (máquina de escribir) vale `freemem` + 2.912, lo que permite calcular `freemem`. Con el SDK 2.0 estos `printf` no salen en el log de PCSX2.
 
-### Margen por sala (calculado con las 205 RDX de la ISO; deducido)
+### Margen por sala (tamaños de las 205 RDX de la ISO + valores medidos en juego con `ramread.py`)
 
 - Una sala se lee expandida en `memp` (máximo 8.931.872 B en RM_0030, mediana 6,22 MB). Al final de `bhSetRoom` se hace `sys->memp = reladr` (room.c:337), que recupera la sección de texturas. Lo que queda (la parte `hed04`) es como mucho 2.915.836 B (RM_9350), con mediana 1,37 MB.
-- Durante la carga hace falta `mempb + sala expandida ≤ endp − 320 KB`. En RM_0030 sobran unos 1,75 MB; en la sala mediana, unos 4,4 MB.
+- Durante la carga hace falta `mempb + sala expandida ≤ endp − 320 KB`. Con `mempb` medido (hito 2a, con P2), en RM_0030 sobran unos 1,83 MB; en la sala mediana, unos 4,4 MB.
 - Otras reservas en partida que salen del mismo espacio: `bhEff135`, 2 MB (effsub1b.c:633); el inventario, 128 KB (sub1.c:1562); la copia de las texturas de la sala que hacen el mapa y el inventario (map.c:131); y el cambio de personaje, que lee 1,29 MB en `memp`.
 - Pool de texturas: efectos de `SYSTEM.AFS[1]` (1.090.304 B) + Claire (0,27 MB) + arma + sala. La sala con más textura es RM_4030 (7,39 MB): el total ronda los 8,8 MB de 10 MB. Ver el sistema de texturas en [world-systems.md](world-systems.md).
 

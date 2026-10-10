@@ -795,6 +795,8 @@ static void Coop_pad_read2(void)
     *(unsigned int*)(Pad_rdata2 + 4) ^= 0xFFFFFFFF;
 
     Pad_set(&Ps2_pad.pad2, 2);
+
+    coopPadActuater2();
 }
 
 const PDS_PERIPHERAL* coopGetPeripheral2(void)

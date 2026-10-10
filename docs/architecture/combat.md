@@ -173,3 +173,19 @@ Además del `BH_PWORK` del tirador (`mode1..3`, `at_flg`, `wax/way/waz`, `ayp`, 
 
 - Balas, cuchillo y proyectiles solo recorren `ene[]` (weapon.c:615-617, 1093-1095, 1162-1171). El jugador no está en `ene[]`, así que no puede recibir disparos de otro jugador.
 - Las explosiones dañan a `plp` (el jugador que se esté actualizando cuando corre el efecto, normalmente `ply`).
+
+## Segundo jugador (build `COOP`, hito 2b)
+
+P2 combate con el mismo código (`bhControlPlayer` con `plp = &ply2`). Además de lo que protegía el hito 1, `coopBegin`/`coopEnd` (coop.c) cuidan el estado global del combate:
+
+| Estado | Qué se hace |
+| --- | --- |
+| `gm_flg 0x40000` (arma vacía) | La munición es compartida (`swork.pip` sigue siendo la de P1), así que el bit que deja P2 pasa a P1 |
+| `sys->obwp[0]` (corredera, bombeo) | Se intercambian `flg & 0xC80000`, `mode0` y `mlwP` con el objeto de arma de P2 **solo alrededor de `bhControlPlayer()`**: los objetos de P2 se actualizan después en la misma ventana y necesitan su propio `mlwP` |
+| `ene[i].flg & 0x4` (impacto del frame) | Se quita antes y se repone después, para que el disparo de P2 no ignore a un enemigo al que ya dio P1 en ese frame |
+| `rom->lgtp[0]` (fogonazo) | Si cambia en la ventana de P2 con `lkflg == 1`, se fija en la mano de P2 (`lkflg = 0`) |
+| Vibración | `CurrentPortId = 1`: va al mando 2 (ver [input.md](input.md)) |
+
+Al sacar a P2 del combate a la fuerza (cambio de arma de P1, eventos) hay que hacer lo que hace `bhCPM2_act_wre`: `stflg &= ~0x10400` y `flg &= ~0x10000`. La entrada al combate exige `!(stflg & 0x10000)` (player.c:1797) y ese bit solo lo quitan `wre`, `cro` y el daño (`coopLeaveCombatP2`).
+
+Limitaciones: la IA del enemigo herido sigue usando a P1, las explosiones de P2 pueden dañar a P1, y las armas con mira no se pueden usar con P2.

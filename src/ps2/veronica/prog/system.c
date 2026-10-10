@@ -1469,6 +1469,12 @@ void bhSysCallMonitor()
             
             break;
         case 10:
+#ifdef COOP
+            if (coopLoadPlayer2() == 0)
+            {
+                break;
+            }
+#endif
             sys->ss_flg &= ~0x200;
             
             if (!(sys->gm_flg & 0x400000)) 

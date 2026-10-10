@@ -86,11 +86,15 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
 - **Dónde está:**
   - `src/ps2/veronica/prog/coop.c` + `include/ps2/veronica/prog/coop.h`;
   - el bloque `#ifdef COOP` al final de `ps2_sg_pad.c` (lectura del puerto 2);
-  - 7 ganchos de una línea (G1-G7), listados en [docs/coop/README.md](docs/coop/README.md).
+  - el bloque `#ifdef COOP` al final de `ps2_sg_pdvib.c` (vibración del mando 2);
+  - 9 ganchos pequeños (G1-G9), listados en [docs/coop/README.md](docs/coop/README.md).
 - **Cómo funciona:** P2 es `BH_PWORK ply2`. Se actualiza con el `bhControlPlayer()` original dentro de `coopBegin()`/`coopEnd()`, que intercambian el mando, ponen `plp = &ply2`, y guardan y restauran `st_flg`, `cb_flg`, `gm_flg`, `pt_flg`, `flr_idx`, `etc_idx`, `pl_htp`, `door` y `cam`.
 - **Regla:** cualquier llamada nueva que use `plp` por dentro (por ejemplo `bhCheckWallEx`) sobre P2 va dentro de ese contexto.
 - **Activar o desactivar:** `"COOP"` en `defines` de `compile_config.json`. Al cambiarlo, borra `build/src/`.
-- **Spec y plan del hito 1:** `docs/superpowers/specs/` y `docs/superpowers/plans/`.
+- **P2 desde el hito 2a:** lleva su propio modelo (Claire B, cargado en el paso 10 del modo 1 por G8), las manos clonadas del arma de P1 (G4, al final de `bhReadWeaponData`) y su coleta, en objetos propios de `coop.c`.
+- **Combate de P2 (hito 2b):** misma arma que P1 y munición compartida; `coopBegin`/`coopEnd` protegen también el objeto de arma, los impactos del frame, el fogonazo y el puerto de vibración (ver [combat.md](docs/architecture/combat.md)).
+- **`COOP_TEST`:** define solo para pruebas (nunca en el build normal): pone una pistola con 15 balas en el inventario de P1 al cargar. Se activa con `#define COOP_TEST` tras el `#ifdef COOP` de coop.c.
+- **Specs y planes:** `docs/superpowers/specs/` y `docs/superpowers/plans/`.
 
 ## Modelo mental del motor
 
@@ -109,12 +113,15 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
 - Varias funciones reciben un `BH_PWORK*` pero leen `plp` igualmente: `bhCheckFloorP`, el daño de `bhCheckWall*` y `bhCheckExmAtari`.
 - Los ids de entidad 31-38 de `bhJumpEnemy[]` los sustituyen algunos enemigos al inicializarse.
 - Los números de línea de `docs/` pueden desplazarse con los cambios: busca por el nombre de la función.
-- **MWCC no es determinista con `ps2_SystemSaveScreen.c` ni con `player.c`**:
+- **MWCC no es determinista con `ps2_SystemSaveScreen.c`, `player.c` ni `effsub1b.c`**:
   - en `ps2_SystemSaveScreen.c` (`DispSysSaveMessageSelect`) cambia el orden de dos constantes float;
-  - en `player.c` (`bhCPM2_act_wlk`) cambia el registro float elegido (`$f12`/`$f13`). Seis compilaciones del mismo fuente dieron cuatro objetos distintos.
+  - en `player.c` (`bhCPM2_act_wlk`) cambia el registro float elegido (`$f12`/`$f13`). Seis compilaciones del mismo fuente dieron cuatro objetos distintos;
+  - en `effsub1b.c` (`bhDraw137`) cambia hasta el tamaño de la función (8 bytes), lo que desplaza todo lo que va detrás. Cinco compilaciones dieron cuatro objetos distintos.
 
-  Para comparar dos ELF byte a byte, borra el `.o` y recompila hasta que coincida (`rm build/src/ps2/veronica/prog/player.o` y `compile.py`). Compara solo los segmentos `PT_LOAD`; la información de depuración cambia con cualquier línea nueva.
-- **Con el build por defecto (SDK 2.0), los `printf` del juego no salen en el log de PCSX2**, ni con la consola del EE ni con la del IOP. Para verificar en tiempo de ejecución, usa capturas y el log propio de PCSX2 (por ejemplo, `Pad: DS2 Config Finished - P2/S1` demuestra que se sondea el puerto 2).
+  Para comparar dos ELF byte a byte, borra el `.o` y recompila hasta que coincida (`rm build/src/ps2/veronica/prog/player.o` y `compile.py`). Para saber qué objeto difiere, compara las tablas de símbolos de los dos ELF: el primer símbolo con otra dirección o tamaño lo indica. Compara solo los segmentos `PT_LOAD`; la información de depuración cambia con cualquier línea nueva.
+- **Con el build por defecto (SDK 2.0), los `printf` del juego no salen en el log de PCSX2**, ni con la consola del EE ni con la del IOP, y `njPrintC` está vacío. Para verificar en tiempo de ejecución:
+  - capturas y el log propio de PCSX2 (por ejemplo, `Pad: DS2 Config Finished - P2/S1` demuestra que se sondea el puerto 2);
+  - **leer la RAM desde un savestate**: con `SavestateCompressionType = 0` en `PCSX2.ini` el `.p2s` es un zip sin comprimir con `eeMemory.bin` (32 MB, dirección del EE `& 0x1FFFFFF`). Las direcciones de los globales (incluidos los `static`) están en `elf/main.elf.xMAP`. La herramienta del hito 2a es `.superpowers/sdd/2026-10-10-coop-hito2a/tools/ramread.py`, y el arnés `pcsx2.ps1` tiene `SaveState` (tecla F1).
 - **El puerto 2 solo se lee durante el juego**, porque la tarea 6 (`bhSysCallPad`) no está activa en logos ni en el título. Nadie más llama a `pdGetPeripheral(1)`.
 - **`mkiso.py -m insert` falla en silencio si PCSX2 tiene abierta `iso/RECVX_NEW.iso`.** Cierra PCSX2 antes y comprueba que la fecha de la ISO es posterior a la de `elf/main.elf`.
 - **`plp->flg & 0x10000` no significa "controlado por guion"**: lo ponen también la animación de espera, el empuje y el daño. Para detectar guiones usa `mode0 == 7`.

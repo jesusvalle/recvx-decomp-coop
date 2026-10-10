@@ -168,10 +168,6 @@ void bhReadPlayerData()
     sys->hd_pos = *(NJS_POINT3*)&plp->mlwP->objP[5].pos;
     
     sys->memp = mempb;
-
-#ifdef COOP
-    coopCloneModel();
-#endif
 }
 
 // 100% matching! 
@@ -342,6 +338,10 @@ void bhReadWeaponData()
             }
         }
     }
+
+#ifdef COOP
+    coopCloneWeapon();
+#endif
 }
 
 // 100% matching!

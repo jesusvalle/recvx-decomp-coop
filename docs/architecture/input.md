@@ -99,5 +99,9 @@ El código del jugador también **escribe** `sys->pad_on &= ~0xF` (player.c:2283
   - Devuelve `NULL` si no hay mando.
 - **Estado lógico de P2:**
   - `coopSetPad2()` (coop.c), llamado al final de `bhSysCallPad`, ejecuta el `bhSetPad()` original con los campos `sys->pad_*` intercambiados y `pd_port = 1`. Así P2 usa la misma configuración de botones y conversión de stick que P1.
-  - Al final se enmascara a `0x40F` (moverse, girar, correr).
+  - Al final se enmascara: `0x40F` (moverse, girar, correr) en el hito 1 y `0x5FF` desde el hito 2b (además apuntar, apuntar arriba/abajo, cambiar de blanco y disparar). Con armas de mira se quita `0x10`.
 - **Detalles:** en demo, o con `!(sp_flg & 0x20)`, no se lee. Nadie más llama a `pdGetPeripheral(1)`.
+- **Vibración del mando 2 (hito 2b):**
+  - La vibración del juego va siempre al puerto 0: `StartVibrationEx` usa `CurrentPortId` (padman.c, siempre 0) y las funciones `pdVibMx*` (ps2_sg_pdvib.c) ignoran el puerto y escriben en la tabla única `Pad_act[20]`, que `Ps2_pad_actuater` envía con `scePadSetActDirect(0, …)` al final de `Ps2_pad_read`.
+  - En la build `COOP`, `coopBegin` pone `CurrentPortId = 1` durante la ventana de P2, así que sus vibraciones llegan como puerto lógico 8. Los ganchos de `pdVibMxIsReady`/`pdVibMxStart`/`pdVibMxStop` desvían el puerto 8 a una tabla propia (`Pad_act2`), que `coopPadActuater2` envía al puerto 1 al final de `Coop_pad_read2`. `pdVibMxStop` para también la de P2, y `coopSetPad2` la para cuando no se lee el mando 2 (pausa, demo).
+  - La opción de vibración del menú (`EnadleVibrationFlag`, vibman.c), `EventVibrationMode` y el filtro del demo se comprueban antes de `pdVibMx*`, así que valen para los dos mandos.

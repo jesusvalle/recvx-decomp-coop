@@ -99,7 +99,7 @@ Las animaciones de movimiento salen de `PlMtnAct[2][3][7]` (player.c:223). Los �
 | Puntero en `sys` | Tamaño | Uso |
 | --- | --- | --- |
 | `plmdlp` | 128 KB | Modelo. Los `O_WORK` (`owP`) de cada modelo van justo detrás del modelo, alineados a 256 (dread.c:161-170) |
-| `lmmdlp`, `wrmdlp`, `wlmdlp` | 32 KB cada uno | `lmmdlp` no lo usa nadie después de reservarlo (está por debajo de `mempb`: sirve para datos propios del cooperativo) |
+| `lmmdlp`, `wrmdlp`, `wlmdlp` | 32 KB cada uno | `lmmdlp` no lo usa el juego después de reservarlo; desde el hito 2a lo usa coop.c (coleta y huesos de las manos de P2) |
 | `plmthp` | 12 KB | Tabla de 512 `MN_WORK` (cuerpo 0-99, arma 100+) |
 | `plbmtp` | 384 KB | Animaciones de cuerpo |
 | `plwmtp` | 64 KB | Animaciones de arma |
@@ -206,13 +206,14 @@ Si se ejecuta el código del jugador con otra instancia en `plp`, esto se ve afe
 
 `coop.c` mantiene un segundo jugador, `BH_PWORK ply2`.
 
-- **Modelo:**
-  - Comparte geometría, texturas, skinning (`skp`) y animaciones (`mnwP = ply.mnwPb`).
-  - Tiene su propia copia de `objP` (con `child`/`sibling` reubicados) y de `owP` para cada `mdl[i]`, en un pool de 64 KB reservado en `bhInitPlayer` antes de `mempb`.
-  - El clon se repite tras cada `bhReadPlayerData`.
-- **Memoria propia:** `exp0` y `exp1` propios; `exp2` sale de `PlyPchInit` en cada sala; `exp3 = NULL` (solo lo usa el objeto del pelo).
+- **Modelo (desde el hito 2a):**
+  - Modelo y texturas propios: el traje que no lleva P1 (`SYSTEM.AFS[14]`, Claire B, o `[10]`). Los lee `coopLoadPlayer2` en el paso 10 del modo 1 del cargador, y `coopReadPlayer2Data` (copia reducida de `bhReadPlayerData`) los vuelca en un pool de 64 KB reservado en `bhInitPlayer` antes de `mempb`.
+  - Comparte con P1 las animaciones (`mnwP = ply.mnwPb`), que son idénticas en los dos trajes.
+  - En el hito 1, P2 era un clon de P1 (`coopCloneModel`): copia de `objP` y `owP` con la geometría y las texturas de P1.
+- **Manos y coleta:** objetos `O_WRK` propios de `coop.c`, no de `sys->obwp`. Las manos son un clon de `sys->obwp[0/1]` (`coopCloneWeapon`, al final de `bhReadWeaponData`) y la coleta es el modelo 4 de P2 con `bhObjClpn`. Sus huesos y los buffers de la coleta están en `sys->lmmdlp`. Se actualizan dentro de `coopBegin`/`coopEnd` y se dibujan con `bhDrawObject`.
+- **Memoria propia:** `exp0` y `exp1` propios; `exp2` sale de `PlyPchInit` en cada sala; `exp3 = NULL` (el pelo usa el `exp3` de su propio objeto).
 - **Update:**
   - `bhControlPlayer()` se ejecuta con `plp = &ply2` dentro de `coopBegin()`/`coopEnd()`.
   - Antes y después se anulan `psh_ct` y el bit 0x80 de `stflg`. Si no, el empuje automático de cajas acabaría con el objeto caja poniendo `mode3 = 6` a P1.
 - **Nunca se ejecuta `bhSetPlayer` sobre `ply2`:** llama a `bhPushGameData`, engancha el pelo y cambia la cámara.
-- **Ocultar:** `stflg & 0x1000000` oculta a la vez el modelo, el update y la sombra (`bhEff001`).
+- **Ocultar:** `stflg & 0x1000000` oculta a la vez el modelo, el update, la sombra (`bhEff001`) y los objetos enganchados. P2 se oculta también mientras P1 no sea Claire (`sys->ply_id != 0`).
