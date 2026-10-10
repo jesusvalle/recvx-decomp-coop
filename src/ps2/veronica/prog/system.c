@@ -555,7 +555,15 @@ void bhSysCallGame()
         sys->cb_flg |= 0x10000000;
     }
     
+#ifdef COOP
+    coopPreSubTask();
+#endif
+    
     bhCheckSubTask();
+    
+#ifdef COOP
+    coopPostSubTask();
+#endif
     
     bhMainSequence();
     
@@ -916,6 +924,10 @@ void bhSysCallItemselect()
     
     njPrintSize(16);
     
+#ifdef COOP
+    coopItemselectBegin();
+#endif
+    
     ItemTaskCheck();
     
     if (!(sys->ts_flg & 0x200)) 
@@ -934,6 +946,10 @@ void bhSysCallItemselect()
         
         sys->gm_flg |= 0x8000;
     }
+    
+#ifdef COOP
+    coopItemselectEnd();
+#endif
     
     njPrintSize(13);
     
@@ -1577,6 +1593,17 @@ void bhSysCallMonitor()
         
         break;
     case 3:
+#ifdef COOP
+        if (sys->mn_md3 == COOP_MN_P2)
+        {
+            if (coopMonitorWeapon2() != 0)
+            {
+                SET_SYS_MN_MD(0, 0, 0, 0);
+            }
+            
+            break;
+        }
+#endif
         switch (sys->mn_md1) 
         {
         case 0:

@@ -231,4 +231,5 @@ Detalle por tipo de ataque en [combat.md](combat.md#daño-al-jugador).
   - `hp` vive en `ply` y sobrevive al cambio de sala (`bhInitRoomChangePlayer` conserva `stflg & 0x78280000`, player.c:870).
   - `sys->ply_hp/ply_stflg/ply_wno[4]` (por `ply_id`) entran en la partida guardada, y `bhFirstGameStart` inicializa los cuatro huecos (system.c:487-492).
   - `bhPushGameData` (instantánea de reintento) solo copia el hueco de `sys->ply_id`. La llaman `bhSetPlayer` (player.c:856), el opcode de punto de reintento (event.c:8176), el cambio de personaje y la carga de sala (system.c:1838, 1915) y el guardado (ps2_SaveScreen.c:1408).
+- **Segundo jugador (build `COOP`, hito 3):** la vida de P2 vive en `ply2.hp` y se copia cada frame a `sys->itm[273]` (y el veneno, `stflg & 0x280000`, a `itm[274]`); `coopRoomStart` la lee de ahí y recalcula `dmlvl`. La muerte de P2 la lanza su propio update, como la de P1. Ver [../coop/README.md](../coop/README.md).
 - **El agarre** anima al jugador con el banco de animaciones del enemigo (`pl->mnwP = epw->mnwP`, en01.c:7584, con `En01_PlyMtn_OffsetTbl[sys->ply_id]`) y después vuelve a `mnwPb`.

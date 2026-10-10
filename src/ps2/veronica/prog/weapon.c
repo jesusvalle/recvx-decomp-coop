@@ -13,6 +13,10 @@
 #include "../../../ps2/veronica/prog/sub1.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 const short EneDamNear[31][22] = 
 {
     {    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },
@@ -1332,6 +1336,10 @@ void bhCheckBombAtari(NJS_POINT3* pos, float ar, int dmax, int dmin)
     BH_PWORK* pp;   
     NJS_VECTOR vec0, vec1; 
     float inn;      
+
+#ifdef COOP
+    coopCheckBombP2(pos, ar, dmax, dmin);
+#endif
 
     spr.c.x = pos->x;
     spr.c.y = pos->y;

@@ -87,13 +87,16 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
   - `src/ps2/veronica/prog/coop.c` + `include/ps2/veronica/prog/coop.h`;
   - el bloque `#ifdef COOP` al final de `ps2_sg_pad.c` (lectura del puerto 2);
   - el bloque `#ifdef COOP` al final de `ps2_sg_pdvib.c` (vibración del mando 2);
-  - 9 ganchos pequeños (G1-G9), listados en [docs/coop/README.md](docs/coop/README.md).
+  - ganchos pequeños (G1-G9 y G11-G19), listados en [docs/coop/README.md](docs/coop/README.md).
 - **Cómo funciona:** P2 es `BH_PWORK ply2`. Se actualiza con el `bhControlPlayer()` original dentro de `coopBegin()`/`coopEnd()`, que intercambian el mando, ponen `plp = &ply2`, y guardan y restauran `st_flg`, `cb_flg`, `gm_flg`, `pt_flg`, `flr_idx`, `etc_idx`, `pl_htp`, `door` y `cam`.
 - **Regla:** cualquier llamada nueva que use `plp` por dentro (por ejemplo `bhCheckWallEx`) sobre P2 va dentro de ese contexto.
 - **Activar o desactivar:** `"COOP"` en `defines` de `compile_config.json`. Al cambiarlo, borra `build/src/`.
-- **P2 desde el hito 2a:** lleva su propio modelo (Claire B, cargado en el paso 10 del modo 1 por G8), las manos clonadas del arma de P1 (G4, al final de `bhReadWeaponData`) y su coleta, en objetos propios de `coop.c`.
-- **Combate de P2 (hito 2b):** misma arma que P1 y munición compartida; `coopBegin`/`coopEnd` protegen también el objeto de arma, los impactos del frame, el fogonazo y el puerto de vibración (ver [combat.md](docs/architecture/combat.md)).
-- **`COOP_TEST`:** define solo para pruebas (nunca en el build normal): pone una pistola con 15 balas en el inventario de P1 al cargar. Se activa con `#define COOP_TEST` tras el `#ifdef COOP` de coop.c.
+- **P2 desde el hito 2a:** lleva su propio modelo (Claire B, cargado en el paso 10 del modo 1 por G8) y su coleta, en objetos propios de `coop.c`.
+- **Combate de P2 (hito 2b):** `coopBegin`/`coopEnd` protegen también el objeto de arma, los impactos del frame, el fogonazo y el puerto de vibración (ver [combat.md](docs/architecture/combat.md)).
+- **Arma propia de P2 (hito 2c):** su inventario es `sys->itm[256..271]` (metadatos en `272..279`, dentro de la partida guardada). Su arma la carga `coopReadWeapon2Data` (G8 y, para el inventario de P2, el modo 3 con `mn_md3 = COOP_MN_P2`, G11) en buffers propios; la tabla de animaciones del cuerpo se copia de P1 en G4 (final de `bhReadPlayerData`). Dentro de `coopBegin`/`coopEnd`, `swork.pip` y los bits `gm_flg 0x40000`/`0x10000000` son los de P2.
+- **Inventario de P2 (hito 2d):** la pantalla original con un dueño (`coop_inv_owner`): G13 abre la de P2 con su Start o su petición, G14 pone su bloque, G15 pone `plp = &ply2` solo alrededor de `ItemTaskCheck`/`StatusMain` y es el único punto de cierre, G16 bloquea los objetos clave. La acción de P2 es un sondeo propio de zonas de objeto y baúl (`coopActionP2`), no `bhCheckExmAtari`.
+- **Salud y enemigos (hito 3):** la vida de P2 está en `itm[273]` (veneno en `274`). G17 (eneset.c) cambia `plp`, el mando y el puerto de vibración a P2 durante el update de los enemigos que le eligen (`coop_tgt[]`); G18 hace lo mismo para los efectos dañinos; G19 repite sobre P2 el daño de las explosiones. A P2 muerto no se le reanima.
+- **`COOP_TEST`:** define solo para pruebas (nunca en el build normal): pone una pistola con 15 balas, equipada, en el bloque de P2 al cargar. Se activa con `#define COOP_TEST` tras el `#ifdef COOP` de coop.c.
 - **Specs y planes:** `docs/superpowers/specs/` y `docs/superpowers/plans/`.
 - **Cómo probar** (herramientas, navegación en PCSX2, partida de prueba, identidad sin `COOP`): [docs/coop/testing.md](docs/coop/testing.md).
 
@@ -126,4 +129,8 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
 - **El puerto 2 solo se lee durante el juego**, porque la tarea 6 (`bhSysCallPad`) no está activa en logos ni en el título. Nadie más llama a `pdGetPeripheral(1)`.
 - **`mkiso.py -m insert` falla en silencio si PCSX2 tiene abierta `iso/RECVX_NEW.iso`.** Cierra PCSX2 antes y comprueba que la fecha de la ISO es posterior a la de `elf/main.elf`.
 - **`plp->flg & 0x10000` no significa "controlado por guion"**: lo ponen también la animación de espera, el empuje y el daño. Para detectar guiones usa `mode0 == 7`.
+- **`sys->pad_oncpy` es el historial de pulsaciones:** `bhSetPad` calcula `pad_ps = pad & ~pad_oncpy` (pad.c:275) y nadie más lo lee. Si se enmascara (como hace `coopSetPad2` con el mando de P2), los botones enmascarados dan una pulsación nueva en cada frame que se mantienen. Por eso el mando de P2 enmascara `on/ps/rs/old` pero no `oncpy`.
+- **Muertes en agarres:** los enemigos ponen `hp < 0` dentro del agarre (con `stflg 0x40000`) y terminan la secuencia leyendo `plp`; si `plp` cambia de jugador a mitad, enemigo y jugador se quedan congelados sin game over. Ver [enemies-and-npcs.md](docs/architecture/enemies-and-npcs.md).
+- **`grep -c $'$'` en Git Bash da recuentos falsos de CRLF**: para saber los finales de línea de un archivo, cuenta `b'
+'` con Python. Los archivos del repo no son todos iguales (unos CRLF, otros LF): al editar con scripts, detecta el final de línea de cada uno.
 - **Pruebas automáticas en PCSX2:** se pueden añadir asignaciones de teclado a `[Pad1]`/`[Pad2]` de `PCSX2.ini` (líneas extra con la misma clave, sin quitar los mandos), enviar teclas con `keybd_event` a la ventana y capturar con `PrintWindow`. Haz copia del ini y restáuralo al acabar. **No pulses Alt** para dar el foco: Alt+Enter cambia a pantalla completa.

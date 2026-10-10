@@ -44,10 +44,22 @@ Tipos de `itemdata[].type`: `0x1` arma equipable, `0x2` munición, `0x8` curaci�
 | 64..191 | Baúl general, 128 entradas, índice `& 0x7F` (sub1.c:2632-2640, 8257-8292, 7490-7505) |
 | 192..223 | Baúl especial A (`cb_flg 0x80000`). `bhItemPlToSBox` vacía 192..255 y mueve ahí los objetos de un personaje (event.c:7936-7945) |
 | 224..255 | Baúl especial B (`cb_flg 0x100000`). También almacén de `bhPlItemLostEx` (`224 + v1`, event.c:8273); el byte bajo de `itm[224]` guarda la cantidad del id 4 (sub1.c:6564, 4074-4076) |
-| **256..382** | **Sin referencias en el código**: solo `AllItemInit` lo pone a cero. Libre |
+| **256..382** | **Sin referencias en el código original**: solo `AllItemInit` lo pone a cero. En el build `COOP` (hito 2c), 256..279 es el bloque de P2 (ver abajo); 280..382 sigue libre |
 | 383 | Bits de archivos leídos (fileview.c:128, 351; itemview.c:1201-1227) |
 
 **256..382 está libre también en los guiones:** se escanearon los scripts de las 205 salas (los operandos reales de 0xB2/0xB7/0xC2 van de 0 a 2, y 0xBF apunta a `itm[224]`); `bhItemSBoxToIBox` llega como mucho a unos 222. Detalle del riesgo que se descartó: varios opcodes de script calculan el índice con operandos del guion (`bhItemGetGet` 0xB2 `itm[v0*16+2]`, event.c:7759; `bhItemGetGetEx` 0xC2; `bhItemPlToSBox` 0xB7 `v0*16`; `bhPlItemLostEx` 0xBF `224+v1`). Solo llegarían a 256 o más con `v0 ≥ 16` o `v1 ≥ 32`; no se han escaneado los RDX para comprobarlo. Además, si el baúl general está lleno, el bucle de `bhItemSBoxToIBox` (0xB8, event.c:7957-7971) puede pasar de 192.
+
+### Bloque de P2 (build `COOP`, hito 2c)
+
+| Entrada | Contenido |
+| --- | --- |
+| `itm[256..271]` | Inventario de P2, con el formato de un bloque de personaje (`[0]` casilla equipada, `[1]` fija, `[2..11]` objetos) |
+| `itm[272]` | Firma `0x434F4F50` (`COOP_MAGIC`): si no está, `coopSeedBlock` pone el bloque a cero con el cuchillo equipado (`[0] = 2`, `[2] = 0x00080001`) |
+| `itm[273]` | Vida de P2 (máximo 160, o 320 con `gm_mode == 2`; la usa el hito 3) |
+| `itm[274]` | Veneno de P2 (`stflg & 0x280000`; hito 3) |
+| `itm[275..279]` | Reservado |
+
+Como está dentro de `version..save_end`, el bloque viaja con la partida guardada, la instantánea de reintento y las demos sin cambiar el formato. Una partida guardada sin el mod lo tiene a cero y se siembra al cargarla. La siembra se hace en el paso 10 del modo 1 del cargador (G8), salvo en el demo.
 
 ### Otros datos por personaje
 
@@ -150,6 +162,15 @@ Tipos de `itemdata[].type`: `0x1` arma equipable, `0x2` munición, `0x8` curaci�
 - La pantalla del baúl es `StatusMain` en modo 4, con `pip` = inventario del personaje y `bxp` = baúl.
 - El baúl general es compartido. `ItemBoxChange` (sub1.c:7760-7990) aplica `standard[ply_id]` (qué objeto va a la casilla `[1]`) y reglas propias de `ply_id == 0`: en la sala 9-26 los objetos clave no se pueden sacar; los ids 105, 106 y 121 no se pueden guardar; en la sala 0-9 solo se guarda el tipo `0x400` (sub1.c:7787-7812). Mover el arma equipada pone `plp->wpnr_no = 0` y `mn_mode0 = 3` (sub1.c:7924-7934).
 - La tapa del baúl (`bhObjItmBox`, objitm.c:799-831) corre en `bhControlObjItm`, fuera del update del jugador: en `case 2` pone `cb_flg |= 0x40000` y en `case 3` borra `plp->stflg 0x10000`.
+
+## Pantalla de P2 (build `COOP`, hito 2d)
+
+- La pantalla es la misma; `coop_inv_owner` (coop.c) dice de quién es. Se abre inyectando el Start de P2 (`pad_ps 0x4000`) o su petición (`cb_flg 0x10/0x20000/0x40000`) antes de `bhCheckSubTask` (G13), solo si P1 no ha pedido nada en ese frame.
+- No se abre mientras P1 está ocupado (`st_flg 0x4`: escalera, examinar, agacharse, apuntar) o con un mensaje (`st_flg 0x200`): la petición espera, como mucho 5 s.
+- Mientras es de P2: el mando que leen las tareas 8 y 9 es el de P2 sin máscara; `swork.pip = &sys->itm[256]` en cada inicialización de `StatusMain` (también al volver del mapa); `plp = &ply2` solo alrededor de `ItemTaskCheck`/`StatusMain`, así que la vida, el veneno, el arma y `bhStandPlayerMotion` del cierre son de P2; `sb_id`, `etc_idx` y `cb_flg 0x100` son los de la zona de P2 (los lee `bhItmCk` en la tarea 8).
+- Equipar (`WeaponSet`, `GetItem` con `cb_flg 0x8000`, `ItemBoxChange`) pide `mn_mode0 = 3`; G15 lo marca con `mn_mode3 = COOP_MN_P2` y el cargador carga el arma de P2 (G11). Un `mn_mode0 = 3` que ya estuviera antes (de un guion de P1) no se marca.
+- Cierre: `ts_flg & 0x200` sin `st_flg & 0x40000` (el mapa no cierra). Se reponen `swork.pip`, `sb_id`, `etc_idx`, `cb_flg 0x100` y el mando de P1.
+- La acción de P2 no pasa por `bhCheckExmAtari`: `coopActionP2` copia la prueba del tipo 4 (punto `pos − 2·(sin ay, cos ay)`, rectángulo de la zona, piso, ángulos prohibidos `attr 0x400/0x800/0x1000/0x2000`) y hace lo mismo que el original para objetos (agacharse con `attr & 1`, archivo con `attr & 0x10`) y baúl general (`prm0 == 0xFF` o la tapa `obwp[prm0]`).
 
 ## Máquina de escribir
 

@@ -20,6 +20,10 @@
 #include "../../../ps2/veronica/prog/screen.h"
 #include "../../../ps2/veronica/prog/sdfunc.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 #pragma optimization_level 4
 
 static unsigned short sakai;
@@ -2666,6 +2670,13 @@ unsigned char ItemUse(S_WORK* st)
     unsigned short useon;  
     unsigned char ok;      
 
+#ifdef COOP
+    if (coopItemUseBlocked(st) != 0)
+    {
+        return 2;
+    }
+#endif
+
     ok = 0;
 
     useon = 0;
@@ -3387,6 +3398,9 @@ void StatusMain()
         swork.statusflg |= 0x40;
         
         CenterPositionInit();
+#ifdef COOP
+        coopStatusInit();
+#endif
         CursorInit(testset[15], sprset[9], st);
         
         if (sys->gm_mode == 3) 

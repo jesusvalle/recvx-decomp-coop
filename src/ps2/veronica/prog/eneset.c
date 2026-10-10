@@ -46,6 +46,10 @@
 #include "../../../ps2/veronica/prog/zonzon1.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 typedef void (*JumpEnemy_proc)(BH_PWORK*);
 
 JumpEnemy_proc bhJumpEnemy[100] = 
@@ -374,7 +378,13 @@ void bhControlEnemy()
                     bhControlMask(ep);
                 }
                 
+#ifdef COOP
+                coopEnemyBegin(ep);
+#endif
                 bhJumpEnemy[ep->id](ep);
+#ifdef COOP
+                coopEnemyEnd(ep);
+#endif
                 
                 bhEne_InitDamage(ep);
                 

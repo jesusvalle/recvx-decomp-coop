@@ -177,13 +177,14 @@ Además del `BH_PWORK` del tirador (`mode1..3`, `at_flg`, `wax/way/waz`, `ayp`, 
 - Balas, cuchillo y proyectiles solo recorren `ene[]` (weapon.c:615-617, 1093-1095, 1162-1171). El jugador no está en `ene[]`, así que no puede recibir disparos de otro jugador.
 - Las explosiones dañan a `plp` (el jugador que se esté actualizando cuando corre el efecto, normalmente `ply`).
 
-## Segundo jugador (build `COOP`, hito 2b)
+## Segundo jugador (build `COOP`, hitos 2b y 2c)
 
 P2 combate con el mismo código (`bhControlPlayer` con `plp = &ply2`). Además de lo que protegía el hito 1, `coopBegin`/`coopEnd` (coop.c) cuidan el estado global del combate:
 
 | Estado | Qué se hace |
 | --- | --- |
-| `gm_flg 0x40000` (arma vacía) | La munición es compartida (`swork.pip` sigue siendo la de P1), así que el bit que deja P2 pasa a P1 |
+| `swork.pip` (munición) | Desde el hito 2c, `&sys->itm[256]` (el bloque de P2) durante la ventana de P2; se restaura el valor anterior al salir. En el 2b era compartida |
+| `gm_flg 0x40000` (arma vacía) y `0x10000000` (crítico de la pistola especial) | Desde el hito 2c, cada jugador tiene los suyos: los de P2 viven en `coop_gm2` y se ponen en `gm_flg` solo dentro de la ventana. El crítico de P2 se calcula al cargar su arma (id 131 equipado) |
 | `sys->obwp[0]` (corredera, bombeo) | Se intercambian `flg & 0xC80000`, `mode0` y `mlwP` con el objeto de arma de P2 **solo alrededor de `bhControlPlayer()`**: los objetos de P2 se actualizan después en la misma ventana y necesitan su propio `mlwP` |
 | `ene[i].flg & 0x4` (impacto del frame) | Se quita antes y se repone después, para que el disparo de P2 no ignore a un enemigo al que ya dio P1 en ese frame |
 | `rom->lgtp[0]` (fogonazo) | Si cambia en la ventana de P2 con `lkflg == 1`, se fija en la mano de P2 (`lkflg = 0`) |
@@ -191,11 +192,32 @@ P2 combate con el mismo código (`bhControlPlayer` con `plp = &ply2`). Además d
 
 Al sacar a P2 del combate a la fuerza (cambio de arma de P1, eventos) hay que hacer lo que hace `bhCPM2_act_wre`: `stflg &= ~0x10400` y `flg &= ~0x10000`. La entrada al combate exige `!(stflg & 0x10000)` (player.c:1797) y ese bit solo lo quitan `wre`, `cro` y el daño (`coopLeaveCombatP2`).
 
+### Arma propia de P2 (hito 2c)
+
+- **Cargador propio** (`coopReadWeapon2Data`, copia reducida de `bhReadWeaponData`): lee `SYSTEM.AFS[20 + wpnr_no]` (P2 siempre es Claire) y escribe en buffers de P2, nunca en `plp`, `sys->obwp`, `wrmdlp`, `wlmdlp` ni `plwmtp`. Monta `coop_wpn[0/1]` como `bhSetWeapon` (`lkwkp = &ply2`). Antes de cargar libera solo las texturas que cargó P2; si las nuevas no caben en el pool, P2 queda sin arma (nunca llega al `exit(0)`).
+- **Arma:** la del objeto equipado en `itm[256..]`, traducida como `WeaponSet` (`coopItemToWpn`). El mechero (id 55) deja a P2 sin arma (`wpnr_no` 0): su luz es de P1.
+- **Animaciones:** tabla propia (`coop_mnw2`, 512 `MN_WORK`). Las del cuerpo (0-99) se copian de las de P1 al final de cada `bhReadPlayerData` (G4, `coopSyncBodyMotions`); las del arma (100 en adelante) son las del fichero de P2, con el resto a cero. Los ficheros `[20]` (sin arma) y `[21]` (mechero) no traen animaciones de arma: P1 conserva las de su arma anterior y P2 se queda con la parte del arma a cero (el cuerpo no usa animaciones ≥ 100: `PlMtnAct` va de 0 a 54).
+- **Cuándo se carga:** en la carga completa (G8, tras el cuerpo de P2) y en el modo 3 del cargador cuando lo pide el inventario de P2 (`SET_SYS_MN_MODE(3, 0, 0, COOP_MN_P2)`; G11 lo desvía a `coopMonitorWeapon2`, sin banco de sonido).
+- **Texturas:** cada arma ocupa unos 135-205 KB de pool (los TIM2 de las dos manos, 67-102 KB cada una); la comprobación previa suma los bloques enteros del fichero (131-197 KB por mano), así que pide el doble. Si P1 y P2 llevan la misma, el recuento de referencias de `njReleaseTexture` (`count`) evita que una liberación de P1 deje sin texturas a P2.
+- **Cargador de las armas 12/13** (`bhEff007`): G12 oculta el cargador en el arma del tirador (`coop_wpn[0]` si el efecto cuelga de `&ply2`) y comprueba que el modelo tiene más de 2 huesos.
+- **Sonido:** el banco es el del arma de P1 (D13): P2 suena con el disparo del arma de P1 o no suena.
+- **Ráfaga del arma 5** (`ev_flg` 74): es global; la decide el inventario de quien la equipa.
+
 Limitaciones: la IA del enemigo herido sigue usando a P1, las explosiones de P2 pueden dañar a P1, y las armas con mira no se pueden usar con P2.
+
+## Daño al jugador
+
+- Lo escribe siempre el atacante en su update, sobre `plp`: enemigos (golpes, agarres), efectos y explosiones. Ver [player.md](player.md#salud-daño-y-muerte).
+- **Efectos que dañan a `plp`** (comprobado leyendo sus cuerpos): `bhEff_E03_Acid` (256, ácido de araña), `bhEff_E06_Rinpun` (260, polvo de polilla; envenena), `bhEff_E12_FrameLiquid` (265) y `bhEff_E12_FloorBlood2` (266) (Alexia), `bhEff_E14_Fire` (269), `bhEff_Sub350` (350, effsub4.c) y el gas de sala `bhEff127` (`plp->hp = -1` si la cabeza queda por debajo de `sys->gas_py`). El 397 (`bhEff_E15_Poison`, Nosferatu) daña a través de `PoisonAttack` (en15.c), que escribe `plp->hp`, `stflg 0x200000` y `mode0`.
+- **Explosiones:** `bhCheckBombAtari` (weapon.c) daña a `plp` (radio `0.7·ar`, `dmax` cerca y `dmin` lejos, sin pared en medio) y a `ene[]`.
+- **Build `COOP` (hito 3):** G18 pone `plp` = el jugador más cercano al efecto para esos ids, y repite a mano sobre P2 la comprobación del gas; G19 repite sobre P2 el bloque del jugador de `bhCheckBombAtari` (las explosiones dañan a los dos).
 
 ## Sonido de armas
 
 - Todos los sonidos de arma van al banco 1: `CallPlayerWeaponSeEx` fuerza `(SeNo & 0xFFFF00FF) | 0x100` y alterna los canales 8/9 (sdfunc.c:1546-1579); no suena nada mientras se carga un banco de armas.
 - Hay cinco bancos fijos, `SE_BANK = {0, 4, 5, 6, 7}` (ps2_sg_sd.c:1868-1872), todos ocupados: 0 común (`COMMON.MLT`), 1 armas (`ARMS_xxx.SPQ`, 20 bancos), 2-3 sala, 4 voz (`CORE_xxx`). El banco lo fija la cabecera del `.SPQ` (`SPQ_HEADER.BankNo`, sdfunc.c:654). `LoadSoundPackFile` lee el `.SPQ` en `memp` con `bhGetFreeMemory`/`bhReleaseFreeMemory` (sdfunc.c:618-697).
 - Casi todas las armas disparan con el sonido 261 (lista 5); la 10 y la 19 con el 271. Comunes: 257/258 cargador, 263/264 corredera, 260 sin munición, 265 bombeo, 275/277 cuchillo, 276 (player.c:1733).
-- **Solo puede haber un banco de armas cargado**: el del arma de `ply`. Un segundo jugador con otra arma suena con el banco de P1 (sonido de otra arma) o sin sonido si P1 no lleva un arma con banco (cuchillo, mechero, nada). Cargar un segundo banco exigiría tocar el driver del IOP (no decompilado).
+- **Solo puede haber un banco de armas cargado**: el del arma de `ply`. Un segundo jugador con otra arma suena con el banco de P1 (sonido de otra arma) o sin sonido si P1 no lleva un arma con banco (cuchillo, mechero, nada).
+- **Un segundo banco completo no cabe**, pero sí uno reducido. El driver del IOP tiene 8 puertos fijos y la RAM de la SPU2 está repartida al peor caso. Quedan dos huecos que dejó la reserva de reverb, de unos 64 y 55 KB (ver [world-systems.md](world-systems.md#driver-de-sonido-iop-y-memoria-spu2)). Los sonidos que usa el jugador (listas 1, 2, 4-9, 15, 16, 20, 29 y 30) ocupan como mucho 51.264 bytes por arma (`ARMS_013`); el cuchillo, 5.600. Como las muestras se direccionan con desplazamientos relativos, los programas de esos sonidos se pueden añadir al HD de otro puerto apuntando al hueco, sin tocar el IRX.
+- `WpnTab[].snd_wpno` da el número de `ARMS_xxx.SPQ` de cada arma (cuchillo 12, mechero 19).
+- Los proyectiles y explosiones (effsub1.c: 259, 266-270, 279-282) piden sus sonidos desde el update de efectos, fuera del contexto del tirador.

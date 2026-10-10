@@ -24,6 +24,10 @@
 #include "../../../ps2/veronica/prog/ps2_texture.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 typedef void (*bhJumpEffect_proc)(O_WRK*);
 typedef void (*bhJumpEffect0_proc)(O_WRK*);
 typedef void (*bhJumpEffect2_proc)(O_WRK*);
@@ -814,6 +818,9 @@ void bhControlEffect()
                         }
                     }
                     
+#ifdef COOP
+                    coopEffectBegin(op);
+#endif
                     if (op->id < 150) 
                     {
                         bhJumpEffect[op->id](op);
@@ -834,6 +841,10 @@ void bhControlEffect()
                     {
                         bhJumpEffect4[op->id - 350](op);
                     }
+                    
+#ifdef COOP
+                    coopEffectEnd(op);
+#endif
                     
                     if ((op->flg & 0x10000)) 
                     {

@@ -18,6 +18,10 @@
 #include "../../../ps2/veronica/prog/weapon.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 // 100% matching!
 void bhEffDmy(O_WRK* op)
 {
@@ -2353,7 +2357,11 @@ void bhEff007(O_WRK* op)
         
         if (op->mdlver != 0) 
         {
+#ifdef COOP
+            coopEff007Mag(op);
+#else
             sys->obwp->mlwP->objP[2].evalflags |= 0x8;
+#endif
         }
         
         op->mode0 = 1;
