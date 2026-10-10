@@ -62,7 +62,9 @@ Si se necesita estado nuevo, se pone en variables globales aparte.
 
 ## Datos de la sala: `ROM_WORK` (`rom`)
 
-`rom` (types.h:1341) apunta a las tablas de la sala cargada (fichero RDT):
+`rom` (types.h:1341) apunta a las tablas de la sala cargada (fichero RDT). `bhSetRoom` (room.c) copia 1004 bytes de la cabecera de la RDT expandida, desde el offset que indica el u32 en `+16`, y suma `sys->rdtp` a cada puntero hasta `dmp00`.
+
+Para leerla fuera del juego: `expand.py` (`.superpowers/sdd/2026-10-10-coop-hito2a/tools/`) descomprime las 205 salas de `RDX_LNK.AFS`; `ROM_WORK` empieza en el u32 de `+16`, con `cut_n` en `+0x80` y `lgt_n` en `+0x84`. **Máximos medidos en las 205 salas: `lgt_n` = 44 (RM_0020, RM_0021) y `cut_n` = 14.** (Al importarse, `expand.py` descomprime todas las salas: tarda unos minutos.)
 
 | Campo | Contenido |
 | --- | --- |

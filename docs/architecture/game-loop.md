@@ -63,6 +63,10 @@ for i in 0 .. sys->loop_ct-1:                  // bhSysCallGame fuerza loop_ct =
     si loop_ct > 1: bhControlMessage() + bhControlEvent()
 ```
 
+**El dibujo usa la cámara del frame anterior:** `bhCheckCut` decide el plano al final del frame, después de dibujar, y los guiones (tarea 8) corren después de `bhSysCallGame`. Así, lo que cambien `bhCheckCut` o un guion (`cam`, `st_flg 0x1`, la cámara de evento con sus mallas ocultas) se ve en el dibujo del frame siguiente.
+
+**Coste de un frame:** al entrar en `Ps2SwapDBuff` (ps2_NaSystem.c:67), `Ps2_vcount` cuenta los vsync que lleva el frame. El juego espera hasta tener 2 (30 fps); con 3 o más, la lógica se ralentiza. El hito 5 lo cuenta ahí (G31).
+
 `bhSysCallGame` pone `sys->loop_ct = 1` en cada frame (system.c:543), así que esa última rama no se ejecuta nunca en la práctica. Los mensajes y los scripts de evento corren en la tarea 8 (`bhSysCallEvent`), después de `bhSysCallGame`.
 
 Los enemigos se actualizan **antes** que el jugador. Los agarres (`_Nage`, `_PlayerControl`) modifican `plp` y `sys->pad_on` dentro de `bhControlEnemy`.

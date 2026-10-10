@@ -25,6 +25,11 @@ Hay una sola cámara global, `CAM_WORK cam` (types.h:1062, main.c:39). No hay pa
 ### Primera persona
 
 - `bhInitPlEyeCamera`, `bhControlPlEyeCamera` y `bhSetPlEyeCamera` (cut.c:2472-2800) usan el hueso de la cabeza de `plp` (`owP[5]`).
+- **Entrar:** el código del jugador pide la vista con `gm_flg 0x2000` y pone `cam.pe_ax = 0`, `cam.pe_pers = 11832` (`bhCPM0_action`, player.c:1789; disparo, player.c:4693 y 6131). Lo pide en modo persistente (`gm_flg 0x1000000`) y al apuntar con un arma de mira: `wpnr_no` 13 o 18 (objeto 3, y objeto 11, el lanzador lineal), mira `bhCPM2_act_scp` (playpch2.c, `mode2` 71).
+- `bhMainSequence` llama a `bhInitPlEyeCamera` si está el bit `0x2000` (game.c), y esta pone `gm_flg 0xC0`. Además muestra todas las mallas de la sala (`evalflags &= ~0x8`), apaga las luces 4+ (`flg &= ~0x2`), pone la niebla de `rom` y llama a `njClipZ(-1.0, -20000)`, o `-1.1` con `wpnr_no` 10 o 19.
+- **Mientras dura:** `bhSetPlEyeCamera` se llama en cada frame (game.c, si `gm_flg & 0x40`). La mira pone `st_flg 0x800000` (dibujar la mira, `bhDrawScope`, que usa la textura y el tipo de `sys->obwp[0]`), `gm_flg 0x80000` (zoom) y quita `pt_flg 0x1` (no dibujar al jugador).
+- **Salir:** quita `gm_flg 0xC0` y pone `0x800`, y `bhCheckCut(1)` vuelve al plano (con la transición de `bhControlPlEyeCamera`).
+- **Todo es estado global de un jugador:** `gm_flg 0x40/0x80/0x800/0x2000/0x80000`, `st_flg 0x800000`, `pt_flg 0x1` y `cam.pe_*`. El hito 5 los lleva por separado para P2 (G32).
 
 ### Cámara de P2 (pantalla partida, `COOP_SPLIT`)
 
@@ -81,6 +86,8 @@ Las escaleras (`kaidan`) y escalones (`dansa`) leen el global `sys->pl_htp` (pla
 - **Lista de dibujo diferida:** `bhAllDrawModel` llena una OT que se envía en `Ps2DrawOTag` (y se vacía con `Ps2ClearOT`). Para cambiar algo que el GS aplica al momento (el recorte) entre dos partes de la escena, hay que enviar la OT antes.
 - **Recorte y pantalla:** `njUserClipping(2, p)` (ps2_NaSystem.c:439) pone el scissor del GS en el rectángulo `p[0]..p[1]`, **en bloques de 32 píxeles** (la pantalla mide 20x15; el inventario divide entre 32) y `njUserClipping(0, …)` lo restaura a pantalla completa. `njSetScreen` (ps2_NaView.c:27) fija la distancia de proyección, el tamaño y el centro (`cx/cy`) del área de dibujo. El inventario dibuja así el modelo 3D del objeto (sub1.c:3540-3580): `Ps2DrawOTag` → recorte → dibujo → `Ps2DrawOTag` → recorte completo.
 - **Segunda pasada de la escena:** `bhDrawSmallScreenRenderTexture` (screen.c:920) dibuja la sala otra vez desde otro plano para los monitores (`gm_flg 0x200`): copia `cam`, `bhSetRenderCut` + `bhControlCamera`, `njSetScreen`, `bhAllEasyDrawModel` (sin jugador) y `Ps2DrawOTag`; después restaura `cam`, la proyección (`njSetScreenProjection`, `Ps2CalcScreenCone`), las mallas ocultas del plano (`bhSetHideObjLgt`) y las luces (`bhSetLight`). `bhDrawFullScreenRenderTexture` (screen.c:816) dibuja la escena entera a una textura de 512x480.
+- **Proyección a pantalla:** `njProjectScreen(cam.mtx, &p3, &p2)` (la que usa `bhCheckClipPoint`, pwksub.c:2503) devuelve coordenadas del GS, con el centro de la imagen en (`fNaViwOffsetX`, `fNaViwOffsetY`), que valen 2048 con la pantalla centrada (`cx + 1728`, `cy + 1808`). La fila de la imagen de 640x480 es `p2.y - fNaViwOffsetY + 240`.
+- **Desplazamiento del GS:** los entornos de dibujo están en `Db.draw01` y `Db.draw11` (`sceGsDBuffDc`, ps2_dummy.c:17; `sceGsSetDefDBuffDc` a 640x480). `xyoffset1` debería valer (1728, 1808) en los dos, sin comprobar en ejecución. Un registro del GS se escribe al momento con un paquete A+D por `loadImage`, como `Ps2SetFogColor` (ps2_dummy.c).
 - **Lo que avanza al dibujar** (cuenta si se dibuja la escena dos veces):
   - `bhAllDrawModel` decrementa `pl_sleep_cnt` (game.c);
   - `bhControlLight` anima las luces (`lp->ct0`, `mode`, color) en cada llamada;
@@ -160,4 +167,5 @@ Investigado en octubre de 2026 para los sonidos de arma de P2. Lo del IOP sale d
 
 - No se muestra la vida durante el juego; solo en la pantalla de estado: `StatusInit` (sub1.c:1389) lee `plp->hp`/`stflg`, y `Pulse*` (sub1.c:9075-9275) dibuja el ECG.
 - La curación está en `Use_00` (sub1.c:6283).
+- **El menú de opciones son imágenes, no texto:** `DisplayOptionPlateLevel0` (adv.c:2648) dibuja 7 filas fijas (`OptionDef[0..6]`), cada una como un trozo de una textura prerrenderizada (`SetQuadPos`/`SetQuadUv2` sobre `Qtex`), y el cursor recorre los índices 0-6 a mano. Para añadir una fila hace falta una textura con el rótulo y ampliar el cursor y el diseño.
 - La muerte normal lanza el game over poniendo a 0 el bit `0x4000` de `ts_flg` (`bhCPM0_die`, player.c:6424). `gm_flg 0x400` indica otro caso: game over por fin de una cuenta atrás (player.c:1298).

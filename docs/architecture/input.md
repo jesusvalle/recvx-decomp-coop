@@ -37,6 +37,8 @@ La llama la tarea 6, `bhSysCallPad` (system.c:518), solo si `sys->sp_flg & 0x20`
 
 `sys->pad_port` se escribe en sync.c:113 pero nadie lo lee; el que cuenta es el global `pd_port`.
 
+**Botones físicos sin traducir:** `sys->p1per->on` (pulsados) y `->press` (recién pulsados, flanco calculado en `Pad_set`, ps2_sg_pad.c) llevan los botones SCE del mando 1, `(dato[2] << 8) | dato[3]` de `scePadRead`. Los gatillos siguen el orden de libpad: L2 `0x1`, R2 `0x2`, L1 `0x4`, R1 `0x8` (cuadra con `pad_tab_a`: R1 `0x8` → apuntar, L1 `0x4` → bit lógico `0x80`). L2 y R2 no tienen bit lógico: la combinación L1+L2+R1+R2 del hito 5 (coopcam.c) los lee de aquí. `p1per` solo se refresca si `sp_flg & 0x20`; si no, `press` se queda con el valor del último frame leído.
+
 ## Bits lógicos
 
 Deducidos de la tabla de tipo A y de cómo los usa el código.

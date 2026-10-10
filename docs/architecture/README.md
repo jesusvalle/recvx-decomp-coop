@@ -64,6 +64,8 @@ El proyecto cooperativo tiene su propio documento: [../coop/README.md](../coop/R
 | Callback de entidad | `bhEne_SetCallFunc`, `bhEne_CallocWork` | eneset.c:933, :906 |
 | NPC de guion | `bhSubpl` | subpl.c:76 |
 | Cámara fija | `bhCheckCut`, `bhSetCut` | cut.c:12, :281 |
+| Primera persona (mira, lanzador lineal) | `bhInitPlEyeCamera`, `bhSetPlEyeCamera`, `bhCPM2_act_scp` | cut.c:2621, :2719; playpch2.c:13 |
+| Segunda cámara / pantalla partida (cooperativo) | `coopUpdateCamera2`, `coopSplitDraw` | coopcam.c |
 | Paredes / suelo | `bhCheckWallEx`, `bhCheckFloorP`, `bhGetGroundPosition` | hitchk.c:641, :5245, :3557 |
 | Botón de acción | `bhCheckExmAtari` | hitchk.c:4588 |
 | Empuje entre personajes | `bhCheckPlayer`, `bhCheckEnemies` | hitchk.c:5712, :5788 |
@@ -79,6 +81,7 @@ El proyecto cooperativo tiene su propio documento: [../coop/README.md](../coop/R
 | Qué depende del personaje | `sys->ply_id` (`PlyInfo`, `KnfAtrTab`, `PlFootSnd`, `PlKDU`, tablas de agarre), `sys->costume` (solo carga), `sys->plzmtp` (`bhGetTransZ`) | player.c, en01-en26. Ver [player.md](player.md#segunda-instancia-build-coop) |
 | Voces del jugador | `CallPlayerVoice` (banco 4, `CORE_<id>.SPQ`, programas 0x400-0x403); `RequestPlayerVoiceSoundBank` | sdfunc.c:1422, :773. Ver [world-systems.md](world-systems.md#driver-de-sonido-iop-y-memoria-spu2) |
 | Inventario / estado | `StatusInit`, `StatusMain` | sub1.c:1389, :3242 |
+| Menú de opciones | `Adv_GameOptionScreen`, `DisplayOptionPlateLevel0` | adv.c:3429, :2648 |
 
 ## Convenciones de nombres
 
