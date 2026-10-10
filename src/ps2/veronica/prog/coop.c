@@ -29,6 +29,10 @@
 #include "../../../ps2/veronica/prog/message.h"
 #include "../../../ps2/veronica/prog/flag.h"
 
+#ifdef COOP_SPLIT
+#include "../../../ps2/veronica/prog/coopcam.h"
+#endif
+
 BH_PWORK ply2 __attribute__((aligned(64)));
 
 static COOP_PAD coop_pad2;
@@ -74,6 +78,20 @@ static unsigned int coop_pend;
 static int coop_lid = -1;
 static int coop_req_ct;
 static int coop_unstick;
+static ATR_WORK* coop_pl_htp2;
+static int coop_trg_p2;
+static int coop_swapped;
+static int coop_swap_wait;
+static int coop_can;
+static unsigned int coop_ev_cb;
+static unsigned int coop_ev_stflg;
+static int coop_ev_md;
+static unsigned char coop_ev_st[16];
+static unsigned int coop_trg_bits;
+static unsigned int coop_p1_flr;
+static EXP_WORK coop_sw_e[2];
+static float coop_sw_f[2][9];
+static int coop_sw_i[2][3];
 static unsigned char coop_tgt[128];
 static int coop_tgt_frm[128];
 static int coop_etgt;
@@ -106,6 +124,9 @@ static int coop_reload_fail;
 static COOP_PAD coop_sel_pad1;
 
 extern ETTY_WORK lkmtab[2];
+extern BH_SCEWORK bhEtask[16];
+extern char end[];
+extern void* sbrk(int incr);
 
 extern unsigned int Ps2_free_texmemsize;
 
@@ -290,6 +311,22 @@ void coopSetPad2(void)
         sys->pad_ay = 0;
         sys->pad_dx = 0;
         sys->pad_dy = 0;
+    }
+}
+
+/* G35 (main, antes de njUserInit): la base del heap de la libc (heap_ptr de glue.s) es el end del ejecutable retail
+ * (0x1E2CD00, splat la dejó como constante). Con el código cooperativo el BSS acaba más arriba, y malloc (el búfer de
+ * stdout de printf, el primero) repartiría memoria dentro de nuestras variables: printf llegó a pisar la cola de comandos
+ * al IOP (sndque_tbl) y colgaba la carga de sonidos. Se adelanta la base hasta el end real. */
+void coopFixHeap(void)
+{
+    char* p;
+
+    p = (char*)sbrk(0);
+
+    if (p < end)
+    {
+        sbrk(end - p);
     }
 }
 
@@ -706,6 +743,43 @@ static void coopTestGiveHandgun(void)
 }
 #endif
 
+#ifdef COOP_TEST_SCOPE
+/* Solo para pruebas: lanzador lineal (id 11) equipado en el bloque de P2 y otro, sin equipar, en el de P1. */
+static void coopTestGiveScope(void)
+{
+    unsigned int* pip;
+    int i;
+
+    pip = &sys->itm[COOP_ITM];
+
+    for (i = 2; i < 10; i++)
+    {
+        if ((((pip[i] >> 16) & 0xFF) == 11) || (pip[i] == 0))
+        {
+            pip[i] = 0x080B0001;
+            pip[0] = i;
+            break;
+        }
+    }
+
+    pip = &sys->itm[sys->ply_id * 16];
+
+    for (i = 2; i < 10; i++)
+    {
+        if (((pip[i] >> 16) & 0xFF) == 11)
+        {
+            break;
+        }
+
+        if (pip[i] == 0)
+        {
+            pip[i] = 0x080B0001;
+            break;
+        }
+    }
+}
+#endif
+
 /* G8: paso 10 del modo 1 del cargador. Devuelve 0 mientras está ocupado y 1 al terminar (falle o no). */
 int coopLoadPlayer2(void)
 {
@@ -735,6 +809,10 @@ int coopLoadPlayer2(void)
             /* Historia: Claire con el traje que no lleva P1. */
             coop_p2_id = 0;
             coop_p2_cos = (sys->costume == 0) ? 1 : 0;
+
+#ifdef COOP_TEST_SCOPE
+            coopTestGiveScope();
+#endif
 
 #ifdef COOP_TEST
             coopTestGiveHandgun();
@@ -1321,6 +1399,28 @@ static void coopSwapWeaponObj(void)
     b->mlwP = w;
 }
 
+#ifdef COOP_SPLIT
+/* bhDrawScope toma la textura y el tipo de sys->obwp[0]: durante la mira de P2, los de su arma. Se llama dos veces (poner y quitar). */
+void coopScopeSwap(void)
+{
+    ML_WORK* w;
+    unsigned short t;
+
+    if (coop_wpn_ok[0] == 0)
+    {
+        return;
+    }
+
+    w = sys->obwp->mlwP;
+    sys->obwp->mlwP = coop_wpn[0].mlwP;
+    coop_wpn[0].mlwP = w;
+
+    t = sys->obwp->type;
+    sys->obwp->type = coop_wpn[0].type;
+    coop_wpn[0].type = t;
+}
+#endif
+
 /* El código del jugador, de los enemigos y de la pantalla de estado lee el personaje de sys->ply_id/costume y los datos z de sys->plzmtp:
  * en cada ventana de P2 (k: 0 su update, 1 un enemigo que va a por él, 2 su pantalla) son los de P2. */
 static void coopSwapId(int k)
@@ -1356,6 +1456,7 @@ static void coopBegin(void)
     coop_save.flr_idx = sys->flr_idx;
     coop_save.etc_idx = sys->etc_idx;
     coop_save.pl_htp = sys->pl_htp;
+    sys->pl_htp = coop_pl_htp2;
     coop_save.door = sys->door;
     coop_save.cam = cam;
     coop_save.fade[0] = sys->fade_an;
@@ -1367,6 +1468,10 @@ static void coopBegin(void)
     swork.pip = &sys->itm[COOP_ITM];
 
     sys->gm_flg = (sys->gm_flg & ~0x10040000) | coop_gm2;
+
+#ifdef COOP_SPLIT
+    coopCamP2Begin();
+#endif
 
     for (i = 0; i < 128; i++)
     {
@@ -1400,6 +1505,10 @@ static void coopEnd(void)
 
     coopSwapPad(&coop_pad2);
 
+#ifdef COOP_SPLIT
+    coopCamP2End();
+
+#endif
     sys->st_flg = coop_save.st_flg;
     sys->cb_flg = coop_save.cb_flg;
     /* Arma vacía y crítico de la pistola especial: cada jugador tiene los suyos. */
@@ -1408,6 +1517,7 @@ static void coopEnd(void)
     sys->pt_flg = coop_save.pt_flg;
     sys->flr_idx = coop_save.flr_idx;
     sys->etc_idx = coop_save.etc_idx;
+    coop_pl_htp2 = sys->pl_htp;
     sys->pl_htp = coop_save.pl_htp;
     sys->door = coop_save.door;
     cam = coop_save.cam;
@@ -1474,6 +1584,19 @@ static int coopP2Dead(void)
 
     return 0;
 }
+
+#ifdef COOP_SPLIT
+/* Para coopcam.c: P2 está en juego (cargado, sin demo, visible y vivo). */
+int coopP2Active(void)
+{
+    if ((coop_loaded == 0) || (coopDemo() != 0) || (coop_hidden != 0) || (coopP2Dead() != 0))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+#endif
 
 /* Como bhResetPlayer (player.c): animaciones de cojera según la vida y el veneno. */
 static void coopSetDmlvl(void)
@@ -1887,16 +2010,57 @@ static void coopLeaveCombatP2(void)
     ply2.mtn_add = 0;
 }
 
-static void coopPlaceNearP1(void)
+static void coopSetPos(BH_PWORK* pp, NJS_POINT3* to)
 {
     EXP_WORK* e;
+
+    e = (EXP_WORK*)pp->exp0;
+
+    pp->px = pp->gpx = pp->pxb = e->spx = e->plx = e->nlxb = to->x;
+    pp->py = pp->gpy = pp->pyb = e->spy = e->ply = e->nlyb = to->y;
+    pp->pz = pp->gpz = pp->pzb = e->spz = e->plz = e->nlzb = to->z;
+
+    e->bpx = e->bpxb = to->x;
+    e->bpy = e->bpyb = to->y + 12.5f;
+    e->bpz = e->bpzb = to->z;
+
+    e->arn = 0;
+    e->arp = 0;
+}
+
+/* P2 cortado a mitad de escalera o saliente: libera la escalera (si no, nadie podría volver a usarla) y lo deja como al final de bhCPM2_act_kdu. */
+static void coopLeaveStairsP2(void)
+{
+    if (ply2.kdnp != NULL)
+    {
+        bhClrUseKaidanFlag(&ply2);
+
+        ply2.kdnp = NULL;
+    }
+
+    if ((ply2.stflg & 0x30))
+    {
+        ply2.stflg &= ~0x80010030;
+
+        ply2.flg &= ~0x80D0400;
+        ply2.flg |= 0x118;
+
+        ply2.flg2 &= ~0x1;
+    }
+}
+
+static void coopPlaceNearP1(void)
+{
     NJS_POINT3 from;
     NJS_POINT3 to;
     float s;
     float c;
     float d;
 
-    e = (EXP_WORK*)ply2.exp0;
+    if ((coopP2Dead() == 0) && (coopP2Held() == 0))
+    {
+        coopLeaveStairsP2();
+    }
 
     njSinCos(ply.ay, &s, &c);
 
@@ -1921,16 +2085,7 @@ static void coopPlaceNearP1(void)
         to = from;
     }
 
-    ply2.px = ply2.gpx = ply2.pxb = e->spx = e->plx = e->nlxb = to.x;
-    ply2.py = ply2.gpy = ply2.pyb = e->spy = e->ply = e->nlyb = to.y;
-    ply2.pz = ply2.gpz = ply2.pzb = e->spz = e->plz = e->nlzb = to.z;
-
-    e->bpx = e->bpxb = to.x;
-    e->bpy = e->bpyb = to.y + 12.5f;
-    e->bpz = e->bpzb = to.z;
-
-    e->arn = 0;
-    e->arp = 0;
+    coopSetPos(&ply2, &to);
 
     /* A P2 muerto, golpeado o agarrado solo se le mueve: no se le reanima ni se le suelta del enemigo. */
     if ((coopP2Dead() == 0) && (coopP2Held() == 0))
@@ -2351,6 +2506,10 @@ void coopRoomStart(void)
 {
     int i;
 
+#ifdef COOP_SPLIT
+    coopCamRoomStart();
+
+#endif
     coop_hidden = 1;
 
     coop_p2_req = 0;
@@ -2358,6 +2517,10 @@ void coopRoomStart(void)
     coop_lid = -1;
     coop_req_ct = 0;
     coop_unstick = 0;
+    coop_pl_htp2 = NULL;
+    coop_trg_p2 = 0;
+    coop_swapped = 0;
+    coop_swap_wait = 0;
 
     npSetMemory(coop_tgt, sizeof(coop_tgt), 0);
 
@@ -2483,6 +2646,12 @@ static void coopSeparate(void)
     float d;
     float min;
 
+    /* En una escalera o saliente, o en pisos distintos, no se empuja (sacaría a P2 de la escalera). */
+    if ((((ply.stflg | ply2.stflg) & 0x30)) || (ply.flr_no != ply2.flr_no))
+    {
+        return;
+    }
+
     dx = ply2.px - ply.px;
     dz = ply2.pz - ply.pz;
 
@@ -2574,7 +2743,7 @@ static void coopDrawObject(O_WRK* op, int ok)
     bhDrawObject(op);
 }
 
-/* Acción de P2: como el tipo 4 de bhCheckExmAtari (objeto o baúl general), sin puertas, escaleras, examinar ni salientes (hito 4). */
+/* Acción de P2: como el tipo 4 de bhCheckExmAtari (objeto o baúl general), sin puertas ni examinar (hito 4). Las escaleras y salientes van por bhCheckExmAtari con G33. */
 static void coopActionP2(void)
 {
     ATR_WORK* exp;
@@ -2700,6 +2869,8 @@ static void coopActionP2(void)
 /* Dentro de la ventana de P2, tras bhControlPlayer: termina las peticiones en curso o lanza una nueva. */
 static void coopRequestP2(void)
 {
+    unsigned int stf;
+
     if (coop_unstick != 0)
     {
         coop_unstick = 0;
@@ -2750,14 +2921,307 @@ static void coopRequestP2(void)
         return;
     }
 
-    if ((ply2.mode0 == 1) && (!(ply2.stflg & 0x10080)) && (!(ply2.flg & 0x4000004)) && (!(sys->cb_flg & 0x4017)) && (!(coop_save.cb_flg & 0x64010)) && (!(coop_save.st_flg & 0x4)) && (!(coop_save.cb_flg & 0x28)) && (coop_pad2raw.ps & 0x200))
+    if ((ply2.mode0 == 1) && (!(ply2.stflg & 0x10080)) && (!(ply2.flg & 0x4000004)) && (!(sys->cb_flg & 0x4017)) && (coop_pad2raw.ps & 0x200))
     {
-        coopActionP2();
+        /* Escaleras y salientes con el sondeo original (G33 filtra el resto). */
+        stf = ply2.stflg & 0x30;
+
+        bhCheckExmAtari(&ply2);
+
+        if ((ply2.stflg & 0x30) != stf)
+        {
+            return;
+        }
+
+        if ((!(coop_save.cb_flg & 0x64010)) && (!(coop_save.st_flg & 0x4)) && (!(coop_save.cb_flg & 0x28)))
+        {
+            coopActionP2();
+        }
     }
+}
+
+/* G33 (bhCheckExmAtari): P2 solo usa escaleras, escalerillas, escalones y salientes (puertas y examinar: hito 4; objetos: coopActionP2). */
+int coopExmSkip(ATR_WORK* exp)
+{
+    if ((plp == &ply2) && (exp->type != 1) && (exp->type != 2))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int coopCanSwap(void);
+
+/* El activador de suelo de P2 lo ve el guion si P1 no pisa ninguno (gana P1) y se pueden intercambiar (si no, el evento se rodaría con P1 en una escalera o lejos: espera). Las zonas de frente (tipo 0 con attr 1) son de objetos clave: hito 4. */
+static void coopTriggerP2(unsigned int trg, unsigned int idx)
+{
+    ATR_WORK* fp;
+
+    if ((sys->cb_flg & 0x8000200))
+    {
+        coop_swap_wait = 0;
+        return;
+    }
+
+    if (trg == 0)
+    {
+        return;
+    }
+
+    if ((int)idx < rom->flr_n)
+    {
+        fp = &rom->flrp[idx];
+    }
+    else
+    {
+        fp = &sys->mflrp[idx - rom->flr_n];
+    }
+
+    if ((fp->type == 0) && ((fp->attr & 0x1)))
+    {
+        return;
+    }
+
+    if (coopCanSwap() == 0)
+    {
+        return;
+    }
+
+    /* coopEventPost los quita tras el guion: si no, el inventario de P1 (Use_01/05) vería la zona de P2. */
+    coop_trg_bits = trg;
+    coop_p1_flr = sys->flr_idx;
+
+    sys->cb_flg |= trg;
+    sys->flr_idx = idx;
+
+    coop_trg_p2 = 1;
+}
+
+/* Copia de la posición de un jugador para deshacer el intercambio tal cual (coopSetPos reinicia arn/arp y las posiciones anteriores). */
+static void coopPosSave(BH_PWORK* pp, int k)
+{
+    coop_sw_e[k] = *(EXP_WORK*)pp->exp0;
+
+    coop_sw_f[k][0] = pp->px;
+    coop_sw_f[k][1] = pp->py;
+    coop_sw_f[k][2] = pp->pz;
+    coop_sw_f[k][3] = pp->gpx;
+    coop_sw_f[k][4] = pp->gpy;
+    coop_sw_f[k][5] = pp->gpz;
+    coop_sw_f[k][6] = pp->pxb;
+    coop_sw_f[k][7] = pp->pyb;
+    coop_sw_f[k][8] = pp->pzb;
+
+    coop_sw_i[k][0] = pp->ay;
+    coop_sw_i[k][1] = pp->ayb;
+    coop_sw_i[k][2] = pp->flr_no;
+}
+
+static void coopPosRestore(BH_PWORK* pp, int k)
+{
+    *(EXP_WORK*)pp->exp0 = coop_sw_e[k];
+
+    pp->px = coop_sw_f[k][0];
+    pp->py = coop_sw_f[k][1];
+    pp->pz = coop_sw_f[k][2];
+    pp->gpx = coop_sw_f[k][3];
+    pp->gpy = coop_sw_f[k][4];
+    pp->gpz = coop_sw_f[k][5];
+    pp->pxb = coop_sw_f[k][6];
+    pp->pyb = coop_sw_f[k][7];
+    pp->pzb = coop_sw_f[k][8];
+
+    pp->ay = coop_sw_i[k][0];
+    pp->ayb = coop_sw_i[k][1];
+    pp->flr_no = coop_sw_i[k][2];
+
+    bhCalcModel(pp);
+}
+
+/* P1 y P2 se cambian de sitio (posición, ángulo y piso). Fuera de coopBegin/coopEnd. */
+static void coopSwapPos(void)
+{
+    NJS_POINT3 p1;
+    NJS_POINT3 p2;
+    int ay1;
+    int ay2;
+    int fl1;
+    int fl2;
+
+    p1.x = ply.px;
+    p1.y = ply.py;
+    p1.z = ply.pz;
+    p2.x = ply2.px;
+    p2.y = ply2.py;
+    p2.z = ply2.pz;
+
+    ay1 = ply.ay;
+    ay2 = ply2.ay;
+    fl1 = ply.flr_no;
+    fl2 = ply2.flr_no;
+
+    coopSetPos(&ply, &p2);
+    coopSetPos(&ply2, &p1);
+
+    ply.ay = ply.ayb = ay2;
+    ply2.ay = ply2.ayb = ay1;
+    ply.flr_no = fl2;
+    ply2.flr_no = fl1;
+
+    bhCalcModel(&ply);
+    bhCalcModel(&ply2);
+}
+
+static int coopCanSwap(void)
+{
+    if ((coop_loaded == 0) || (coopDemo() != 0) || (coop_hidden != 0) || (coopP2Dead() != 0) || (coopP2Held() != 0))
+    {
+        return 0;
+    }
+
+    if ((ply.mode0 != 1) || (ply2.mode0 != 1) || (((ply.stflg | ply2.stflg) & 0x1000030)) || ((sys->cb_flg & 0x5)))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* El guion ha tomado el control: cinemática, jugador por guion u oculto. */
+static int coopTakeover(void)
+{
+    if (((sys->cb_flg & 0x4)) && (!(coop_ev_cb & 0x4)))
+    {
+        return 1;
+    }
+
+    if ((ply.mode0 == 7) && (coop_ev_md != 7))
+    {
+        return 1;
+    }
+
+    if (((ply.stflg & 0x1000000)) && (!(coop_ev_stflg & 0x1000000)))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/* G34 (bhSysCallEvent): antes de bhControlEvent. Con un activador de P2, P1 ocupa su sitio mientras corre el guion. */
+void coopEventPre(void)
+{
+    int i;
+
+    coop_ev_cb = sys->cb_flg;
+    coop_ev_md = ply.mode0;
+    coop_ev_stflg = ply.stflg;
+
+    for (i = 0; i < 16; i++)
+    {
+        coop_ev_st[i] = (bhEtask[i].status != 0) ? 1 : 0;
+    }
+
+    coop_can = coopCanSwap();
+
+    coop_swapped = 0;
+
+    /* Un examen, objeto o mensaje de P1 en la ventana: el evento que siga es suyo. */
+    if ((coop_trg_p2 == 0) && ((sys->cb_flg & 0x38)))
+    {
+        coop_swap_wait = 0;
+    }
+
+    if ((coop_trg_p2 != 0) && (coop_can != 0))
+    {
+        coopPosSave(&ply, 0);
+        coopPosSave(&ply2, 1);
+
+        coopSwapPos();
+
+        coop_swapped = 1;
+    }
+}
+
+/* G34: después de bhControlEvent. Sin toma de control se deshace; una tarea de evento nueva deja 30 frames de margen. */
+void coopEventPost(void)
+{
+    int i;
+    int fresh;
+
+    fresh = 0;
+
+    for (i = 0; i < 16; i++)
+    {
+        if ((coop_ev_st[i] == 0) && (bhEtask[i].status != 0))
+        {
+            fresh = 1;
+        }
+    }
+
+    if (coop_swapped != 0)
+    {
+        if (coopTakeover() == 0)
+        {
+            coopPosRestore(&ply, 0);
+            coopPosRestore(&ply2, 1);
+
+            /* Con P2 aún en la zona se repite cada frame: la ventana abierta sigue contando. */
+            if (fresh != 0)
+            {
+                coop_swap_wait = 30;
+            }
+            else if (coop_swap_wait > 0)
+            {
+                coop_swap_wait--;
+            }
+        }
+        else
+        {
+            printf("[COOP] evento de P2: P1 y P2 intercambiados\n");
+
+            coop_swap_wait = 0;
+        }
+    }
+    else if (coop_swap_wait > 0)
+    {
+        if (coopTakeover() != 0)
+        {
+            if (coop_can != 0)
+            {
+                coopSwapPos();
+
+                printf("[COOP] evento de P2 (retrasado): P1 y P2 intercambiados\n");
+            }
+
+            coop_swap_wait = 0;
+        }
+        else if ((sys->cb_flg & 0x1))
+        {
+            coop_swap_wait = 0;
+        }
+        else
+        {
+            coop_swap_wait--;
+        }
+    }
+
+    /* El activador de P2 solo lo ve el guion. */
+    if (coop_trg_p2 != 0)
+    {
+        sys->cb_flg &= ~coop_trg_bits;
+        sys->flr_idx = coop_p1_flr;
+    }
+
+    coop_trg_p2 = 0;
 }
 
 void coopControlPlayer2(void)
 {
+    unsigned int trg;
+    unsigned int idx;
+
     if ((coop_loaded == 0) || (coopDemo() != 0))
     {
         return;
@@ -2833,6 +3297,10 @@ void coopControlPlayer2(void)
     bhControlPlayer();
     coopSwapWeaponObj();
 
+    /* bhCheckFloorP borra y recalcula los activadores: ahora son solo de P2. */
+    trg = sys->cb_flg & 0x8000200;
+    idx = sys->flr_idx;
+
     coopRequestP2();
 
     ply2.psh_ct = 0;
@@ -2866,6 +3334,8 @@ void coopControlPlayer2(void)
     sys->itm[COOP_ITM + 18] = ply2.stflg & 0x280000;
 
     coopEnd();
+
+    coopTriggerP2(trg, idx);
 }
 
 void coopDrawPlayer2(void)
@@ -2875,7 +3345,11 @@ void coopDrawPlayer2(void)
         return;
     }
 
+#ifdef COOP_SPLIT
+    if ((coopSplitShowP2() == 0) || (ply2.stflg & 0x1000000) || (ply2.mdflg & 0x1))
+#else
     if ((!(sys->pt_flg & 0x1)) || (ply2.stflg & 0x1000000) || (ply2.mdflg & 0x1))
+#endif
     {
         return;
     }

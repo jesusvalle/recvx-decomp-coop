@@ -26,13 +26,25 @@ Hay una sola cámara global, `CAM_WORK cam` (types.h:1062, main.c:39). No hay pa
 
 - `bhInitPlEyeCamera`, `bhControlPlEyeCamera` y `bhSetPlEyeCamera` (cut.c:2472-2800) usan el hueso de la cabeza de `plp` (`owP[5]`).
 
+### Cámara de P2 (pantalla partida, `COOP_SPLIT`)
+
+- `coop_cam2` ([coopcam.c](../../src/ps2/veronica/prog/coopcam.c)) se calcula con el mismo `bhCheckCut`, con `cam` y `plp` cambiados. Un cambio de plano escribe estado global además de `cam`:
+  - flags: `gm_flg 0x10/0x20/0x800`;
+  - niebla: `sys->fog_ct` y, en primera persona, la niebla de `rom`;
+  - filtro: `ef_flg 0x10`, `fil_no/fil_rt`;
+  - las mallas ocultas (`evalflags 0x8`) y las luces 4+ (`flg 0x2`);
+  - con `ts_flg & 0x200`, el recorte de vista (`njClipZ`), el volumen de recorte y el color de fondo.
+
+  Todo eso se restaura después.
+- `cam.mtx` apunta a un buffer global (`cmmat`), así que una copia de `CAM_WORK` comparte la matriz. Hay que volver a llamar a `bhControlCamera` después de dibujar con otra cámara.
+
 Si un personaje que no es `plp` sale del encuadre, no pasa nada: se sigue actualizando y `bhCheckClipModel` (pwksub.c:2465) lo descarta al dibujar.
 
 ## Colisión con la sala
 
 | Función | Línea | ¿Parámetro o `plp`? | Notas |
 | --- | --- | --- | --- |
-| `bhCheckWallEx(pw, npos, opos, r, h)` | hitchk.c:641 | Parámetro | Paredes de `rom->walp` + `sys->mwalp`. Si no choca, ajusta `npos->y` a la altura del piso. Excepciones: el atributo 0x10000 solo se trata si `pw == plp` (:722); las paredes que hacen daño (atributo 0x40) dañan a **`plp`** (:967-1001). El jugador la llama dos veces por frame (cuerpo player.c:1622, pies :1647). |
+| `bhCheckWallEx(pw, npos, opos, r, h)` | hitchk.c:641 | Parámetro | Paredes de `rom->walp` + `sys->mwalp`. Si no choca, ajusta `npos->y` a la altura del piso. Excepciones: el atributo 0x10000 solo se trata si `pw == plp` (:722); las paredes que hacen daño (atributo 0x40) dañan a **`plp`** (:967-1001). El jugador la llama dos veces por frame (cuerpo player.c:1622, pies :1647). Solo prueba si `npos` cae dentro de cada caja ampliada en `r` (:721); no comprueba el segmento `opos`→`npos`, así que un salto grande atraviesa paredes finas. |
 | `bhCheckWall(pw)` | hitchk.c:12 | Parámetro | La usan los enemigos. Mismo problema de daño a `plp` (:259-287). |
 | `bhSetFloorNum(pw)` | pwksub.c:85 | Parámetro | Calcula el piso. |
 | `bhGetGroundPosition(p)` | hitchk.c:3557 | Parámetro | Altura del suelo; escribe el global `sys->htp`. |
@@ -43,7 +55,7 @@ Si un personaje que no es `plp` sale del encuadre, no pasa nada: se sigue actual
 | `bhCollisionCheckLine*` | hitchkl.c | Parámetro | Líneas de visión y balas. |
 | `bhCheckRoute` | rutchk.c:5 | Parámetro | |
 
-Las escaleras (`kaidan`) y escalones (`dansa`) leen el global `sys->pl_htp` (player.c:2882, 3144, 3939, 4134).
+Las escaleras (`kaidan`) y escalones (`dansa`) leen el global `sys->pl_htp` (player.c:2890, 3152, 3947, 4142). Solo se lee en esos modos, y lo vuelven a poner al empezar `bhCheckExmAtari` (tipos 1 y 2) o `bhKaidanPlayerMotion` (guion). Al empezar una escalera, `bhSetUseKaidanFlag` marca la zona y su pareja como ocupadas (`attr 0x400000`; `pp->kdnp`/`kdnidx` recuerdan cuál), y nadie más puede usarla. La marca la quita `bhClrUseKaidanFlag(pp)` al final de la animación o, si se ha cortado, `bhControlPlayer` cuando ve `kdnp != NULL` sin `stflg 0x10` (player.c:1747). En el cooperativo, P2 tiene su propio `pl_htp` (`coop_pl_htp2`, hito 8).
 
 ## Objetos e items ([objitm.c](../../src/ps2/veronica/prog/objitm.c))
 
@@ -67,8 +79,13 @@ Las escaleras (`kaidan`) y escalones (`dansa`) leen el global `sys->pl_htp` (pla
 - La llamada para el jugador está fija en `bhAllDrawModel` (game.c:357-370).
 - **Ritmo:** `Ps2SwapDBuff` (ps2_NaSystem.c:67) espera al menos 2 vsync, así que el juego va a 30 fps fijos. La lógica avanza un paso por frame dibujado (`loop_ct` es siempre 1): si el dibujo tarda más de 2 vsync, el juego se ralentiza, no salta frames.
 - **Lista de dibujo diferida:** `bhAllDrawModel` llena una OT que se envía en `Ps2DrawOTag` (y se vacía con `Ps2ClearOT`). Para cambiar algo que el GS aplica al momento (el recorte) entre dos partes de la escena, hay que enviar la OT antes.
-- **Recorte y pantalla:** `njUserClipping(2, p)` (ps2_NaSystem.c:439) pone el scissor del GS en el rectángulo `p[0]..p[1]` y `njUserClipping(0, …)` lo restaura a pantalla completa. `njSetScreen` (ps2_NaView.c:27) fija la distancia de proyección, el tamaño y el centro (`cx/cy`) del área de dibujo. El inventario dibuja así el modelo 3D del objeto (sub1.c:3540-3580): `Ps2DrawOTag` → recorte → dibujo → `Ps2DrawOTag` → recorte completo.
+- **Recorte y pantalla:** `njUserClipping(2, p)` (ps2_NaSystem.c:439) pone el scissor del GS en el rectángulo `p[0]..p[1]`, **en bloques de 32 píxeles** (la pantalla mide 20x15; el inventario divide entre 32) y `njUserClipping(0, …)` lo restaura a pantalla completa. `njSetScreen` (ps2_NaView.c:27) fija la distancia de proyección, el tamaño y el centro (`cx/cy`) del área de dibujo. El inventario dibuja así el modelo 3D del objeto (sub1.c:3540-3580): `Ps2DrawOTag` → recorte → dibujo → `Ps2DrawOTag` → recorte completo.
 - **Segunda pasada de la escena:** `bhDrawSmallScreenRenderTexture` (screen.c:920) dibuja la sala otra vez desde otro plano para los monitores (`gm_flg 0x200`): copia `cam`, `bhSetRenderCut` + `bhControlCamera`, `njSetScreen`, `bhAllEasyDrawModel` (sin jugador) y `Ps2DrawOTag`; después restaura `cam`, la proyección (`njSetScreenProjection`, `Ps2CalcScreenCone`), las mallas ocultas del plano (`bhSetHideObjLgt`) y las luces (`bhSetLight`). `bhDrawFullScreenRenderTexture` (screen.c:816) dibuja la escena entera a una textura de 512x480.
+- **Lo que avanza al dibujar** (cuenta si se dibuja la escena dos veces):
+  - `bhAllDrawModel` decrementa `pl_sleep_cnt` (game.c);
+  - `bhControlLight` anima las luces (`lp->ct0`, `mode`, color) en cada llamada;
+  - varios efectos avanzan dentro de su función de dibujo, bajo `sys->sp_flg & 0x8`: `bhDraw022/024/025/027/107` (effsub1.c), `bhDraw134` (effsub1b.c) y la lluvia de `bhEff106`, que además reaparece con `rand()` alrededor de `cam.wpx/wpz`.
+- **Niebla de Ninja** (ps2_NaFog.c): `njGenerateFogTable3` escribe la tabla global `fNaFogTbl` (no la que recibe), más `fNaFogNear/Far/Density`. `njSetFogColor` envía `FOGCOL` al GS al momento.
 - **Lo que depende del plano al dibujar:** mallas ocultas de la sala (`evalflags 0x8`, globales en `rom->mdl.objP`), luces (`bhControlLight` lee `cam.ncut`), niebla (`cam.fog_*`), objetos ocultos por plano (`op->hide[]`, objitm.c:562, 659, 688) y el recorte de vista por sala y plano (`ViewClipTbl`, event.c:13534).
 
 ### Texturas
@@ -116,9 +133,10 @@ Investigado en octubre de 2026 para los sonidos de arma de P2. Lo del IOP sale d
   - El número de lista de un SE es el número de programa.
   - Un banco de armas tiene entre 1 y 7 muestras y unos 32 programas.
 - **Carga de un banco de SE** (`sndr_trans_func`):
-  1. Se manda el HD (`SdrHDDataSet2`, orden 0x29) y se comprueba su suma.
+  1. Se manda el HD (`SdrHDDataSet2`, orden 0x29) y se comprueba su suma. En el nivel 2 de `trans_level`, el EE **espera en un bucle** (`while (get_iop_snddata.se_sum[banco] == 0) get_iopsnd_info()`) a que el IOP devuelva la suma de los bytes con signo del HD, y la compara con `SE_HD_CHECK[banco]`. Si no coinciden, reenvía el HD. Si el IOP no llega a recibir la orden 0x29, el bucle no acaba nunca. Como corre en la interrupción de VSync, el juego se congela (PCSX2 muestra `FPS: no`).
   2. Se manda el BD a trozos de 48 KB (`SdrBDDataTrans`, orden 0x2C). El IOP lo escribe en `Tsnd_spuadr_tbl[puerto & 0x7F] + desplazamiento`, que es de 24 bits, **sin comprobar el tamaño de la zona**.
   3. `SdrBDDataSet2` (orden 0x2B) llama a `sceHSyn_Load(puerto + 10, Tsnd_spuadr_tbl[puerto], HD, banco 0)`. Cada puerto tiene un único banco cargado, y `modhsyn` calcula la dirección de cada muestra como base + desplazamiento.
+- **Cola de órdenes al IOP** (ps2_snddrv.c): `sndque_tbl[128]` (8 bytes por orden; `cmd < 0` = libre), con `sque_w_idx` (escritura) y `sque_r_idx` (lectura). `SdrSendReq` empaqueta en `sbuff` las órdenes con `cmd >= 0` desde `sque_r_idx` y las manda por RPC. Si algo escribe encima de la tabla, las entradas pisadas se envían como órdenes basura, `sque_r_idx` adelanta a `sque_w_idx` y las órdenes de verdad se pierden. Pasó con el heap de la libc ([rooms-and-memory.md](rooms-and-memory.md#memoria)). El comentario original sobre `SdrSendReq` ("halting the game on the emulator" tras `SdrHDDataSet2`) describe el mismo síntoma.
 - **Reproducción:** la petición es `canal | puerto << 16 | programa << 8` (`sdShotPlay`). Hay 8 canales por banco de SE (`use_se_info`). `SetupSeGenericParm` saca el banco de los bits 8-11 del número de SE.
 - **Lo que el IOP lee del HD de un banco de SE** (orden 0x29, en `treq_BGM`):
   - guarda una tabla por programa (`se_info`) para `Tsnd_tqreq`;

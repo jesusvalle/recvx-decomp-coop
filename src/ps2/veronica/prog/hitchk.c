@@ -7,6 +7,9 @@
 #include "../../../ps2/veronica/prog/ps2_NaMatrix.h"
 #include "../../../ps2/veronica/prog/ps2_NaView.h"
 #include "../../../ps2/veronica/prog/pwksub.h"
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
 
 // 99.40% matching
 void bhCheckWall(BH_PWORK* pw) 
@@ -4635,6 +4638,13 @@ void bhCheckExmAtari(BH_PWORK* pp)
         
         if ((exp->flg & 0x1)) 
         {
+#ifdef COOP
+            if (coopExmSkip(exp) != 0)
+            {
+                continue;
+            }
+#endif
+            
             px = pxn[exp->type];
             pz = pzn[exp->type];
             

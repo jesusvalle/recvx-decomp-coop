@@ -747,7 +747,15 @@ void bhSysCallEvent()
     
     cb_flg = sys->cb_flg;
     
+#ifdef COOP
+    coopEventPre();
+#endif
+    
     bhControlEvent();
+    
+#ifdef COOP
+    coopEventPost();
+#endif
     
     if ((!(sys->cb_flg & 0x4)) && ((cb_flg & 0x4))) 
     {

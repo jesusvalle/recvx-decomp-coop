@@ -20,6 +20,10 @@
 #include "../../../ps2/veronica/prog/coop.h"
 #endif
 
+#ifdef COOP_SPLIT
+#include "../../../ps2/veronica/prog/coopcam.h"
+#endif
+
 // 100% matching! 
 void bhMainSequence()
 {
@@ -67,6 +71,10 @@ void bhMainSequence()
             
         if (i == (sys->loop_ct - 1)) 
         {
+#ifdef COOP_SPLIT
+            if (coopSplitDraw() == 0)
+            {
+#endif
             if ((sys->gm_flg & 0x200))
             {
                 bhDrawSmallScreenRenderTexture();
@@ -117,6 +125,11 @@ void bhMainSequence()
             {
                 bhDrawScreenFade();
             }
+#ifdef COOP_SPLIT
+            }
+
+            coopDrawMeter();
+#endif
         }
         
         if (((sys->st_flg & 0x200000)) && (!(sys->cb_flg & 0x1)))
@@ -301,6 +314,9 @@ void bhMainSequence()
         {
             bhCheckCut(1);
         }
+#ifdef COOP_SPLIT
+        coopUpdateCamera2();
+#endif
         
         if (sys->loop_ct > 1) 
         {

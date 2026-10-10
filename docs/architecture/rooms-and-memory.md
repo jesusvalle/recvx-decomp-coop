@@ -4,7 +4,7 @@ Rutas relativas a `src/ps2/veronica/prog/`.
 
 ## Memoria
 
-Toda la memoria del juego son arrays estáticos en BSS. No hay direcciones absolutas, así que el ejecutable puede crecer.
+Toda la memoria del juego son arrays estáticos en BSS, así que el ejecutable puede crecer, con **una excepción: el heap de la libc**. `sbrk` (glue.s, embebido del retail) empieza en `heap_ptr.30`, que splat dejó como la constante **0x01E2CD00** (el `end` del ejecutable retail; `config/symbol_addrs.txt` la marca `ignore:true`). Sin el mod, el BSS acaba en 0x1E2CB80 y no pasa nada. Si el BSS pasa de 0x1E2CD00, `malloc` reparte memoria **dentro** de las variables del programa: lo primero es el búfer de `stdout` (0x1E2CD10), y cada `printf` escribe en él. En el cooperativo pisaba `get_iop_buff` y, al crecer 1280 B, la cola de comandos al IOP (`sndque_tbl`), y la carga de sonidos se colgaba en "Now Loading". Con `COOP`, `coopFixHeap` (G35, al principio de `main`) avanza la base con `sbrk` hasta el `end` real.
 
 | Bloque | Dónde | Tamaño | Uso |
 | --- | --- | --- | --- |

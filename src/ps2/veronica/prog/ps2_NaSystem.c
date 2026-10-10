@@ -3,6 +3,10 @@
 #include "../../../ps2/veronica/prog/ps2_loadtim2.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP_SPLIT
+#include "../../../ps2/veronica/prog/coopcam.h"
+#endif
+
 PS2_NJ_SAVE Ps2_nj_save_current;
 
 // 100% matching!
@@ -74,6 +78,9 @@ void Ps2SwapDBuff()
     SyncPath(); 
 
     EorFunc(); 
+#ifdef COOP_SPLIT
+    coopFrameStat(Ps2_vcount);
+#endif
     
     while (Ps2_vcount < 2) 
     { 

@@ -19,6 +19,8 @@ La arquitectura del motor en la que se basa este documento está en [../architec
 | 2026-10-10 | **Sonidos de arma propios de P2** (sin commits): los sonidos del arma de P2 salen de su propio banco (`ARMS_xxx`), reducido a lo que usa el jugador y añadido al banco de voz, con las muestras en un hueco libre de la RAM de sonido. Antes, con P1 con el mechero o la pistola y P2 con el cuchillo, el cuchillo de P2 no sonaba. Probado en PCSX2 con la partida de prueba (P1 mechero, P2 cuchillo): HD fusionado en el IOP, muestras en la SPU2 y voces de la SPU2 leyendo de ellas al dar P2 una cuchillada; falta oírlo. Ver [Sonidos de arma de P2](#sonidos-de-arma-de-p2). |
 | 2026-10-11 | **Hito 3 implementado** (sin commits, sin probar en PCSX2): P2 tiene vida propia (guardada con la partida), los enemigos comunes van a por el jugador más cercano y le golpean, agarran y muerden; ácido, fuego, gas y explosiones dañan también a P2; si muere cualquiera de los dos, game over. Plan: [2026-10-11-coop-hito3.md](../superpowers/plans/2026-10-11-coop-hito3.md). Revisión final: un fallo crítico (P2 muerto en un agarre dejaba al enemigo y a P2 congelados) y cuatro importantes, corregidos. |
 | 2026-10-10 | **Hito 7 implementado** (sin commits, sin probar en PCSX2): 7a, P2 puede ser cualquier personaje (cuerpo, animaciones, datos z, armas, objeto enganchado, voz y retrato propios; dentro de sus contextos `sys->ply_id`/`costume`/`plzmtp` son los suyos); 7b, mercenarios a dos (P1 elige, la sala de selección se repite para P2 con el mando 2, cada uno con su inventario de mercenarios). En la historia no cambia nada (ni se carga la voz de P2). Revisión final: ningún fallo crítico; tres importantes (posición al repetir la selección, voz cargada sin necesidad en la historia, bloqueo sin mando 2) y cuatro menores, corregidos. Sin `COOP`, idéntico a la línea base. Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hito7-design.md). Plan: [2026-10-10-coop-hito7.md](../superpowers/plans/2026-10-10-coop-hito7.md). Ver [Hito 7](#hito-7-p2-de-cualquier-personaje-y-mercenarios-a-dos). |
+| 2026-10-11 | **Hito 5, prototipo de pantalla partida** (sin commits, sin probar en PCSX2 por petición del usuario): en juego normal, dos franjas de 640x240 con el plano de cámara de cada jugador (P1 arriba, P2 abajo), pantalla completa en cinemáticas, primera persona en la franja de su jugador, L1+L2+R1+R2 del mando 1 alterna una o dos cámaras (`itm[275]`) y un medidor de frames lentos. Spec: [2026-10-11-coop-hito5-split-design.md](../superpowers/specs/2026-10-11-coop-hito5-split-design.md). Plan: [2026-10-11-coop-hito5-split.md](../superpowers/plans/2026-10-11-coop-hito5-split.md). Ver [Hito 5](#hito-5-pantalla-partida-prototipo). |
+| 2026-10-10 | **Hito 8 implementado** (sin commits, sin probar en PCSX2): P2 sube y baja escaleras, escalerillas, escalones y salientes dentro de la sala con su botón de acción, y sus activadores de suelo disparan los eventos; si el evento toma el control (cinemática, jugador por guion u oculto), P1 y P2 se cambian de sitio. Sin `COOP`, idéntico a la línea base. Spec: [2026-10-10-coop-hito8-design.md](../superpowers/specs/2026-10-10-coop-hito8-design.md). Plan: [2026-10-10-coop-hito8.md](../superpowers/plans/2026-10-10-coop-hito8.md). Ver [Hito 8](#hito-8-p2-en-escaleras-y-eventos). |
 
 ## Hoja de ruta
 
@@ -94,9 +96,11 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 - [ ] Empujar cajas con P2 sin afectar a P1
 - [ ] Usar objetos clave y resolver puzles con P2
 
-### Hito 5 — Cámara y sonido para dos
+### 🟡 Hito 5 — Cámara y sonido para dos
 
-- [ ] Política de cámara cooperativa (seguir a P1, punto medio, o teletransportar a P2 si sale del plano)
+- [x] Prototipo de pantalla partida: dos franjas de 640x240, cada una con el plano de su jugador; pantalla completa en cinemáticas; primera persona en la franja de su jugador; L1+L2+R1+R2 alterna una o dos cámaras (sin probar)
+- [ ] Medir el coste de la pantalla partida en las salas pesadas y decidir qué hacer si se ralentiza
+- [ ] Cámara compartida para el modo de una cámara (seguir el punto medio, elegir el plano que enseña a los dos o teletransportar a P2 si sale del plano)
 - [ ] Pisadas y sonidos de P2 en su propia posición
 
 ### Hito 6 — Eventos y cinemáticas con dos jugadores
@@ -104,6 +108,16 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 - [ ] Que P2 no salte junto a P1 en guiones cortos de examen (puzles)
 - [ ] Cinemáticas que muestran o colocan a P2 donde tenga sentido
 - [ ] Mechero y otros objetos de evento con P2
+
+### 🟡 Hito 8 — P2 en escaleras y eventos
+
+Spec: [2026-10-10-coop-hito8-design.md](../superpowers/specs/2026-10-10-coop-hito8-design.md).
+
+- [x] Escaleras y escalerillas dentro de la sala con el botón de acción de P2 (sin probar)
+- [x] Escalones y salientes, subir y bajar (sin probar)
+- [x] Una escalera cortada a medias (evento, puerta) se libera para P1 (sin probar)
+- [x] Las zonas de suelo que pisa P2 disparan los eventos de la sala (sin probar)
+- [x] Si el evento toma el control, P1 y P2 se cambian de sitio; si no, nadie se mueve (sin probar)
 
 ### 🟡 Hito 7 — Otros personajes y modos
 
@@ -113,6 +127,7 @@ Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hit
 - [x] 7b: mercenarios a dos (P1 y luego P2 eligen personaje; cada uno con su inventario de mercenarios) (sin probar)
 - [ ] P2 durante la parte de Chris en la historia (usa el 7a)
 - [ ] Activar o desactivar el cooperativo desde el juego (sin recompilar)
+- [ ] Fila "Cámara: 1 / 2" en el menú de opciones (va con la anterior: las dos necesitan una textura nueva con el rótulo, porque el menú dibuja imágenes, no texto)
 
 ## Decisiones tomadas
 
@@ -132,9 +147,15 @@ Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hit
 | D13 | ~~**Los disparos de P2 suenan con el banco de sonidos del arma de P1.**~~ Sustituida por D16. | Solo puede haber un banco de armas cargado. Decidido por el usuario el 2026-10-11. |
 | D14 | **Los enemigos van a por el jugador más cercano; game over si muere cualquiera de los dos.** | Decidido por el usuario el 2026-10-11. |
 | D16 | **Los sonidos del arma de P2 van al banco de SE 4 (voz)**, como programas 32 + lista, con las muestras de su `ARMS_xxx` en el hueco libre de la SPU2 que empieza en 0x1E7400. Solo se suben las que usa el jugador (y las demás mientras quepan, hasta 0xDDC0 bytes). | El IOP solo admite un banco por puerto y un banco de armas completo no cabe; el hueco lo dejó la reserva de reverb (el juego solo usa Hall). No toca el driver del IOP. Pedido por el usuario el 2026-10-10. |
-| D15 | **El botón de acción de P2 solo mira zonas de objeto y de baúl general**, con un sondeo propio (`coopActionP2`) que copia la prueba de posición y ángulo del tipo 4 de `bhCheckExmAtari`; no llama a `bhCheckExmAtari`. | Así P2 no abre puertas, no sube escaleras ni salientes y no examina (hito 4), sin tocar las zonas de la sala. Tomada sin el usuario durante el 2d (pendiente de su revisión). |
+| D15 | **El botón de acción de P2 solo mira zonas de objeto y de baúl general** (desde el hito 8, también escaleras y salientes: D23), con un sondeo propio (`coopActionP2`) que copia la prueba de posición y ángulo del tipo 4 de `bhCheckExmAtari`; no llama a `bhCheckExmAtari`. | Así P2 no abre puertas, no sube escaleras ni salientes y no examina (hito 4), sin tocar las zonas de la sala. Tomada sin el usuario durante el 2d (pendiente de su revisión). |
 | D17 | **P2 puede ser cualquier personaje (7a):** dentro de sus contextos (`coopBegin`/`coopEnd`, G15 y G17), `sys->ply_id`, `sys->costume` y `sys->plzmtp` pasan a ser los de P2. Carga sus propias animaciones de cuerpo y datos z, y su arma del banco de su personaje. | Casi todo lo que depende del personaje (alcance del cuchillo, pasos, tablas de agarre, retrato) lee `sys->ply_id`: cambiarlo en el contexto evita tocar el código original. Decidido por el usuario el 2026-10-10. |
 | D18 | **Selección de mercenarios en dos fases repitiendo `RM_5500`:** al confirmar P1, la puerta a 5-52 se redirige a 5-50 y el guion de selección se repite con el mando 2; en esa fase el traje, el personaje y el inventario van a P2. Se puede repetir personaje; P2 recibe el Linear Launcher si está desbloqueado; game over si muere cualquiera; cronómetro, ranking y desbloqueos, de P1. | No hay código C de selección (es el guion de la sala). Repetir la sala no exige entender ni parchear el guion. Decidido por el usuario el 2026-10-10. |
+| D19 | **Pantalla partida en dos franjas de 640x240, siempre en juego normal** (P1 arriba, P2 abajo). Cada franja es una ventana a tamaño real sobre el plano de su jugador que sube o baja para seguirle, sin salir del encuadre original de 640x480. | Las salas solo están modeladas para lo que ve cada plano: abrir el encuadre enseñaría huecos. Decidido por el usuario el 2026-10-11. |
+| D20 | **Cinemáticas a pantalla completa**; también la cámara de guion o de examinar, las bandas de cine, las puertas, el render a textura de pantalla completa y P2 ausente o muerto. | Decidido por el usuario el 2026-10-11. |
+| D21 | **La primera persona ocupa solo la franja de su jugador.** Fase 1, la de P1; fase 2, la de P2, con sus bits de vista (`gm_flg 0x828C0`, `st_flg 0x800000`) viajando con `coopBegin`/`coopEnd`. | Decidido por el usuario el 2026-10-11. |
+| D22 | **Una o dos cámaras con L1+L2+R1+R2 del mando 1**, guardado en `itm[275]` (0 = dos). La fila del menú de opciones va con el hito 7. | El menú de opciones son imágenes prerrenderizadas: añadir una fila exige una textura nueva. Decidido por el usuario el 2026-10-11. |
+| D23 | **Hito 8: escaleras y eventos para P2, sin puertas, examinar, objetos clave ni cajas.** El botón de acción de P2 usa el `bhCheckExmAtari` original filtrado (G33) a zonas de tipo 1 y 2. | Decidido por el usuario el 2026-10-10. Filtrar el original son 3 líneas; copiar los tipos 1 y 2, unas 100. |
+| D24 | **Cuando P2 dispara un evento que toma el control, P1 y P2 se cambian de sitio** (G34). Si no lo toma, no se mueve nadie. | Los guiones mueven y encuadran siempre a `plp` = P1; hacer de P2 el protagonista exigiría cambiar cómo eligen al jugador. Decidido por el usuario el 2026-10-10. |
 | D4 | **No se cambia la estructura de `SYS_WORK` ni de `BH_PWORK`.** El estado nuevo va en variables globales nuevas. | El rango `version..save_end` de `SYS_WORK` es el formato de la partida guardada y del reintento, y `bhInitSystem` usa un tamaño escrito a mano. Ver [rooms-and-memory.md](../architecture/rooms-and-memory.md). |
 
 ## Hito 1: P2 aparece y anda
@@ -188,6 +209,13 @@ Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hit
   | G25 (hito 7b) | `bhSv`, caso 25 (event.c) | `coopBattleCostume`: en la fase P2, el traje es de P2 |
   | G26 (hito 7b) | `bhPlayerChangeSet`, opcode 0x89 (event.c) | `coopBattleChange`: en la fase P2, el personaje es de P2 (sin `cng_pid` ni `cb_flg 0x80`) |
   | G27 (hito 7b) | `bhExGameItemInit`, opcode 0xCF (event.c) | `coopBattleItemInit`: en la fase P2, el inventario de mercenarios va al bloque de P2 |
+  | G29 (hito 5) | `bhMainSequence`, tras el `if/else` que llama a `bhCheckCut` (game.c) | `coopUpdateCamera2`: combinación L1+L2+R1+R2, decide si el frame va partido y calcula la cámara de P2 |
+  | G30 (hito 5) | `bhMainSequence`, bloque de dibujo (game.c) | `if (coopSplitDraw() == 0) { bloque original }` y después `coopDrawMeter()` |
+  | G31 (hito 5) | `Ps2SwapDBuff`, antes de esperar al vsync (ps2_NaSystem.c) | `coopFrameStat(Ps2_vcount)`: el medidor |
+  | G32 (hito 5) | `coopBegin` / `coopEnd` (coop.c) | `coopCamP2Begin` / `coopCamP2End`: los bits de primera persona y la cámara de ojos de P2 |
+  | G33 (hito 8) | `bhCheckExmAtari`, al principio de cada zona activa (hitchk.c) | `if (coopExmSkip(exp) != 0) continue;`: P2 solo ve zonas de escalera y saliente |
+  | G35 | Principio de `main` (njloop.c) | `coopFixHeap`: la base del heap de la libc pasa al `end` real (ver [rooms-and-memory.md](../architecture/rooms-and-memory.md#memoria)) |
+  | G34 (hito 8) | `bhSysCallEvent`, alrededor de `bhControlEvent()` (system.c) | `coopEventPre` / `coopEventPost`: intercambio de P1 y P2 cuando el activador de P2 lanza un evento que toma el control |
 
   No hay G10 (la numeración de las specs del 2c lo saltó).
 
@@ -411,6 +439,54 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 | 7 | Guardar con P2 herido y cargar: P2 vuelve herido | Pendiente |
 | 8 | Hunter y Cerberus atacan a P2; los jefes siguen yendo a por P1 | Pendiente |
 
+## Hito 5: pantalla partida (prototipo)
+
+Spec: [2026-10-11-coop-hito5-split-design.md](../superpowers/specs/2026-10-11-coop-hito5-split-design.md). Plan: [2026-10-11-coop-hito5-split.md](../superpowers/plans/2026-10-11-coop-hito5-split.md). Código: [coopcam.c](../../src/ps2/veronica/prog/coopcam.c) (define `COOP_SPLIT`, que requiere `COOP`).
+
+### Implementación
+
+- **Cámara de P2** (`coop_cam2`, G29): cada frame, tras el plano de P1, `cam = coop_cam2` y `plp = &ply2`, y se llama al `bhCheckCut` original. Se guarda y se restaura lo que toca un cambio de plano: `gm_flg`, `st_flg`, `pt_flg`, `ef_flg`, `fog_ct`, `fil_no/fil_rt` y la niebla de `rom`. Después, `coopApplyCamState` vuelve a poner las mallas y luces ocultas y el recorte de vista del plano de P1.
+- **Dibujo** (G30): dos pasadas de `bhAllDrawModel`.
+  - Antes de cada una se envía la lista de dibujo y se pone el recorte del GS (`SCISSOR_1`) en la franja. La imagen se desplaza con el centro de `njSetScreen` (`COOP_SPLIT_XYOFF 0`).
+  - En la pasada de P2 se cambia la cámara y se aplica el estado de su plano. Las luces (copia de `rom->lgtp` y de `sys->lgtp..lg_ptb`, más `pl_sleep_cnt`) y la niebla (estado de Ninja) se guardan y se restauran.
+  - En esa misma pasada se quita `sp_flg 0x8`, porque varios efectos avanzan al dibujarse.
+  - Encima de las dos, una vez: la línea divisoria, el termómetro y el fundido.
+- **Seguimiento vertical:** se proyecta el punto que sigue la cámara (`gpy + ci->h`) y la ventana se acerca 1/4 cada frame; salta al cambiar de plano. En primera persona va centrada.
+- **Guion o examinar que empieza a mitad de frame:** `coopSplitDraw` vuelve a comprobar las condiciones de pantalla completa antes de dibujar, para no pisar el estado del primer fotograma de la cámara de evento.
+- **Temblor de cámara** (`cam.ofx/ofy/ofz`): la franja de P2 usa el actual.
+- **Visibilidad:** `coopSplitShowP2` decide si P2 se dibuja en cada pasada. En la franja del que está en primera persona no se dibuja su propio cuerpo.
+- **Medidor** (G31):
+  - `coop_fstat[4]` cuenta los frames de 2 o menos, 3, 4 y 5 o más vsync, y `coop_fmax` guarda el peor; se reinician en cada sala;
+  - un cuadradito rojo arriba a la derecha marca los frames de más de 2 vsync;
+  - se lee con `splitread.py` (ver [testing.md](testing.md)).
+- **`COOP_TEST_SCOPE`:** solo para pruebas. P2 empieza con el lanzador lineal equipado y P1 lo tiene en el inventario sin equipar. `iso/RECVX_TEST.iso` se generó con él.
+
+### Se acepta en el prototipo
+
+- El color de fondo por plano (lo cambian pocas salas) es siempre el de P1. Los monitores se ven desde la cámara de P1. El sonido no depende de la cámara de P2.
+- La mira 2D de primera persona (coordenadas fijas de 640x480) se centra en su franja cambiando el registro `XYOFFSET` del GS solo mientras se dibuja, con la lista de dibujo enviada antes y después (`coopDrawScopeStrip`). Es el único uso de `XYOFFSET` y está sin probar: si fallara, solo se vería mal la mira.
+- Los efectos 2D usan coordenadas de pantalla de la cámara de P1. La cara trasera de los efectos (`op->stflg 0x10`) y `bhDrawThl3D` los decide la última cámara que dibuja, la de P2.
+- Si un frame tarda más de 2 vsync, el juego se ralentiza, porque la lógica avanza un paso por frame dibujado.
+
+### Checklist de prueba manual (dos mandos)
+
+`iso/RECVX_NEW.iso` es el build normal. `iso/RECVX_TEST.iso` es el mismo con `COOP_TEST_SCOPE` (para las pruebas 9 y 10).
+
+| # | Prueba | Estado |
+| --- | --- | --- |
+| 1 | Al cargar: dos franjas, P1 arriba y P2 abajo, con una línea negra en medio; cada jugador se ve en las dos franjas si cabe en el plano | Pendiente |
+| 2 | Separarse en una sala de varios planos: cada franja cambia de plano con su jugador; las cámaras que siguen siguen a cada uno; la ventana sube y baja sin enseñar zonas sin modelar | Pendiente |
+| 3 | Mientras P2 cambia de plano, la franja de P1 no cambia (mallas, luces, niebla) y es igual que con una cámara | Pendiente |
+| 4 | L1+L2+R1+R2 del mando 1 alterna entre una y dos cámaras; mantenerlos pulsados no la cambia más veces; no hace nada con el inventario, el mapa o un mensaje abiertos; la elección se guarda en la máquina de escribir y vuelve al cargar y al reintentar | Pendiente |
+| 5 | Cinemática, puerta, examinar con cámara, P2 oculto (parte de Chris) y P2 muerto: pantalla completa como el original, y vuelta a las dos franjas al terminar | Pendiente |
+| 6 | Cambiar de sala y reintentar con dos franjas: sin cuelgues y con las franjas bien en la sala nueva | Pendiente |
+| 7 | Una sala con espejo y una con monitores de vigilancia | Pendiente |
+| 8 | Partículas, sangre, lluvia, fogonazos y luces que parpadean van a velocidad normal con dos cámaras | Pendiente |
+| 9 | Primera persona de P1 (equipar el lanzador lineal desde su inventario y apuntar): la vista y la mira, solo en la franja de arriba; abajo se ve a P1 en tercera persona; al soltar, su franja vuelve a su plano | Pendiente |
+| 10 | Primera persona de P2 (empieza con el lanzador lineal equipado): la vista y su mira, solo en la franja de abajo; arriba se ve a P2; con una cámara, P2 apunta en tercera persona | Pendiente |
+| 11 | Medidor: el cuadradito rojo sale cuando un frame se alarga; `splitread.py` en las salas pesadas, con una y con dos cámaras (apuntar los números en este documento) | Pendiente |
+| 12 | La mira 2D de la prueba 9 y la 10 sale centrada en su franja, no cortada por la línea divisoria. Opcional: con `COOP_SPLIT_XYOFF` a 1 en coopcam.c (y borrando `build/src/`), toda la franja se desplaza con `XYOFFSET` | Pendiente |
+
 ## Sonidos de arma de P2
 
 Código: [coopsnd.c](../../src/ps2/veronica/prog/coopsnd.c), ganchos G20 y G21 en [sdfunc.c](../../src/ps2/veronica/prog/sdfunc.c). La investigación del driver y de la memoria de sonido está en [world-systems.md](../architecture/world-systems.md#driver-de-sonido-iop-y-memoria-spu2).
@@ -487,3 +563,34 @@ Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hit
 | 10 | Muere P2 → game over → vuelta a la selección empezando por P1 | Pendiente |
 | 11 | Llegar al final con los dos: el ranking es el de P1 | Pendiente |
 | 12 | Combinaciones grandes (P1 Claire + P2 Wesker, Claire B + Claire) cargan en todas las salas de mercenarios | Pendiente |
+
+## Hito 8: P2 en escaleras y eventos
+
+Spec: [2026-10-10-coop-hito8-design.md](../superpowers/specs/2026-10-10-coop-hito8-design.md). Plan: [2026-10-10-coop-hito8.md](../superpowers/plans/2026-10-10-coop-hito8.md).
+
+### Implementación
+
+- **Botón de acción de P2** (`coopRequestP2`): primero el `bhCheckExmAtari` original sobre P2; G33 (`coopExmSkip`) le hace saltar toda zona que no sea de tipo 1 (escalera, escalerilla) o 2 (escalón, saliente). Si P2 no ha empezado una escalera o un saliente, `coopActionP2` (objetos y baúl) como en el 2d. La bajada de un saliente sin zona (final de `bhCheckExmAtari`) también vale para P2.
+- **Escalera propia:** `coop_pl_htp2` viaja con `coopBegin`/`coopEnd` en `sys->pl_htp`, que leen las animaciones `act_kdu/kdd/hsu/hsd` y los escalones.
+- **Escalera cortada:** `coopPlaceNearP1` llama primero a `coopLeaveStairsP2` (salvo con P2 muerto o agarrado): `bhClrUseKaidanFlag` quita la marca de zona ocupada (`attr 0x400000`) y se limpia el estado como al final de `act_kdu`. Sin esto, la escalera quedaría bloqueada también para P1.
+- **`coopSeparate`** no empuja con alguno en una escalera o saliente (`stflg 0x30`) ni en pisos distintos.
+- **Activador de P2** (`coopTriggerP2`, tras el `coopEnd` del update de P2): los bits `cb_flg 0x8000200` y `flr_idx` que deja el `bhCheckFloorP` de P2 se añaden a los de P1 si P1 no pisa ninguno (gana P1) y se pueden intercambiar (`coopCanSwap`; si no, el evento espera). Tras el guion se quitan, para que el inventario de P1 no vea la zona de P2. Las zonas de frente (tipo 0 con `attr & 1`, donde se usa un objeto clave) no se pasan.
+- **Intercambio** (G34, `coopEventPre`/`coopEventPost` alrededor de `bhControlEvent`): con un activador de P2 y los dos libres (`coopCanSwap`: de pie en `mode0 1`, sin escalera, sin ocultar, P2 sin morir ni agarrado, sin cinemática ni puerta), P1 y P2 se cambian de sitio antes del guion. Si el guion toma el control (`cb_flg 0x4` sube, `ply.mode0` pasa a 7 u oculta a P1), se queda; si no, se deshace restaurando una copia de la posición de los dos (`coopPosSave`/`coopPosRestore`). Si lanzó una tarea de evento nueva sin tomar el control, durante 30 frames se intercambia en cuanto lo tome (se cancela si P1 pisa un activador, examina, coge un objeto o hay una puerta). Revisión final: un fallo (la ventana se borraba con P2 aún en la zona) y cuatro menores, corregidos. Tras la revisión, la carga se colgaba en "Now Loading": no era el hito 8, sino el heap de la libc en una dirección fija dentro de nuestro BSS (G35, `coopFixHeap`).
+
+### Se acepta en este hito
+
+- En la toma retrasada, los primeros frames del guion corren con P1 en su sitio.
+- Con una cámara, P2 puede subir a un piso que no enseña la cámara de P1.
+- Puertas (también las escaleras que cambian de sala), examinar y objetos clave siguen siendo solo de P1 (hito 4).
+
+### Checklist de prueba manual (dos mandos)
+
+| # | Prueba | Estado |
+| --- | --- | --- |
+| 1 | P2 sube y baja una escalera y una escalerilla dentro de una sala; P1 se mueve libremente mientras | Pendiente |
+| 2 | P2 sube y baja un escalón o saliente | Pendiente |
+| 3 | P1 intenta usar la escalera que usa P2: no puede hasta que P2 termina; después sí | Pendiente |
+| 4 | Un evento o una puerta corta a P2 a mitad de escalera: después P1 puede usarla | Pendiente |
+| 5 | P2 pisa la zona de una cinemática con P1 lejos: la cinemática empieza con P1 donde estaba P2; al acabar, P2 reaparece junto a P1 | Pendiente |
+| 6 | P2 pisa una zona sin cinemática: nadie se teletransporta | Pendiente |
+| 7 | P2 no abre puertas ni examina con su botón de acción; sigue recogiendo objetos y abriendo el baúl | Pendiente |

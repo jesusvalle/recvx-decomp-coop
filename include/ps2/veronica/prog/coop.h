@@ -45,6 +45,7 @@ struct SPQ_HEADER;
 const PDS_PERIPHERAL* coopGetPeripheral2(void);
 int coopPad2Connected(void);
 void coopSetPad2(void);
+void coopFixHeap(void);
 void coopInitMemory(void);
 int coopLoadPlayer2(void);
 int coopReloadPlayer2(void);
@@ -63,6 +64,9 @@ void coopEffectEnd(O_WRK* op);
 void coopCheckBombP2(NJS_POINT3* pos, float ar, int dmax, int dmin);
 void coopRoomStart(void);
 void coopControlPlayer2(void);
+int coopExmSkip(ATR_WORK* exp);
+void coopEventPre(void);
+void coopEventPost(void);
 void coopDrawPlayer2(void);
 void coopVibStop2(void);
 void coopSePack(struct SPQ_HEADER* h, unsigned char* buf);
@@ -78,6 +82,11 @@ void coopBattleDoor(DOOR_WORK* ddp);
 int coopBattleCostume(int v);
 int coopBattleChange(int v);
 int coopBattleItemInit(void);
+
+#ifdef COOP_SPLIT
+int coopP2Active(void);
+void coopScopeSwap(void);
+#endif
 
 #endif
 

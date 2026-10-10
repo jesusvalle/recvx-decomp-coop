@@ -110,7 +110,7 @@ Se pone a 0 al cambiar de sala (system.c:187).
 | --- | --- | --- | --- |
 | 0x1 | Cámara controlada por evento o plano fijo, no por las zonas | cut.c:26, :1690 | C |
 | 0x2 | Niebla activada | sync.c:174 | C |
-| 0x4 | **Jugador ocupado o bloqueado** (cinemática, puerta, escaleras, recoger objeto, daño); bloquea los menús | player.c:1732, system.c:600-632 | C |
+| 0x4 | **Jugador ocupado o bloqueado** (cinemática, puerta, escaleras, recoger objeto, daño); bloquea los menús. Lo pone cada frame `bhControlPlayer` si `plp->flg & 0x4` (player.c:1738) y lo borra el jugador al volver al reposo (player.c:1846) | player.c:1738, system.c:600-632 | C |
 | 0x8 | Pantalla de estado o inventario abierta (subpantalla; la pone `bhCheckSubTask` al abrir y `ItemTaskCheck` la quita al cerrar) | system.c:612, sub1.c:3103-3226 | C |
 | 0x40 | La sala tiene agua | objitm.c:1317 | P |
 | 0x80 | Examinar con cámara en curso | hitchk.c:4813 | P |

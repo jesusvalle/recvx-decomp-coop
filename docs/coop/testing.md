@@ -4,7 +4,7 @@ Guía práctica de lo aprendido en los hitos 1, 2a y 2b. Las rutas de herramient
 
 ## Herramientas
 
-Están en `.superpowers/sdd/<plan>/tools/` (la más reciente: `2026-10-11-coop-hito3`; `check_build.py`, `firstdiff.py`, `identity.sh`, `test_wpnfiles.py`, `fnscan.py` y los `check_fix.py` de cada revisión están en la carpeta del plan). **No están versionadas**: `.superpowers/` lo ignora git.
+Están en `.superpowers/sdd/<plan>/tools/` (la más reciente: `2026-10-11-coop-hito5`; `check_build.py`, `firstdiff.py`, `identity.sh`, `test_wpnfiles.py`, `fnscan.py` y los `check_fix.py` de cada revisión están en la carpeta del plan). **No están versionadas**: `.superpowers/` lo ignora git.
 
 | Herramienta | Para qué |
 | --- | --- |
@@ -20,6 +20,8 @@ Están en `.superpowers/sdd/<plan>/tools/` (la más reciente: `2026-10-11-coop-h
 | `fnscan.py NOMBRE…` | Para cada función, cuenta los `plp` de su cuerpo y lista las líneas que dañan al jugador (para saber qué enemigos o efectos usan `plp`) |
 | `check_fix.py [ARCHIVO.c] [prueba…]` | (2d, 3) Pruebas de los arreglos de cada revisión final sobre coop.c; la del 2d simula `bhSetPad` con el enmascarado del mando de P2. Con un `ARCHIVO.c` se pasan a otra versión (para ver que fallaban antes del arreglo) |
 | `texmargin.py FREE RM_xxxx.RDX` | Peor caso del pool de texturas a partir de una medida en una sala |
+| `splitread.py [--state X.p2s] [--xmap X.xMAP]` | (hito 5) Pantalla partida en un savestate: la opción `itm[275]`, `rom->cut_n`/`lgt_n`, el medidor (`coop_fstat`, `coop_fmax`), `coop_split`, el plano de P1 y de P2, las bandas `k` y el `XYOFFSET` de los dos búferes |
+| `identity.sh` / `identity2.sh` | (hito 5) Identidad sin `COOP` frente a `baseline_main.elf`, y con `COOP` sin `COOP_SPLIT` frente a `coop_before.elf` (el build de antes del hito). Recompilan cualquier objeto que difiera, hasta 50 intentos |
 | `mkiso_test.py` | Genera `iso/RECVX_TEST.iso` (`mkiso.py` siempre escribe `RECVX_NEW.iso`) |
 
 ## Flujo de una prueba
@@ -34,11 +36,13 @@ Están en `.superpowers/sdd/<plan>/tools/` (la más reciente: `2026-10-11-coop-h
 5. Capturas con `Snap`; medidas con `SaveState` y `ramread.py`.
 6. Al terminar: `Stop-Game` y `Restore-Config` (comprobar que el ini queda igual que la copia).
 
-Teclado del arnés: P1 flechas, Z (X), X (círculo), C (cuadrado), V (triángulo), Enter (Start), Q/E (L1/R1); P2 I/J/K/L, N (X), M (círculo), B (cuadrado), H (triángulo), P (Start), U/O (L1/R1); F1 guarda un savestate. Nunca pulsar Alt: Alt+Enter cambia a pantalla completa.
+Teclado del arnés: P1 flechas, Z (X), X (círculo), C (cuadrado), V (triángulo), Enter (Start), Q/E (L1/R1), 1/3 (L2/R2, desde el hito 5: L1+L2+R1+R2 = Q+1+E+3 alterna una o dos cámaras); P2 I/J/K/L, N (X), M (círculo), B (cuadrado), H (triángulo), P (Start), U/O (L1/R1); F1 guarda un savestate. Nunca pulsar Alt: Alt+Enter cambia a pantalla completa.
 
 ## Partida de prueba
 
 La tarjeta del usuario tiene en el slot 1 "Claire / 01 / Prison: front" (sala 0-1, la de la máquina de escribir). P1 solo lleva el mechero, que no se puede desequipar. Desde el hito 2c, P2 lleva su propia arma (el cuchillo en el build normal). Para probar armas de fuego hay que compilar con `COOP_TEST` (`#define COOP_TEST` tras el `#ifdef COOP` de coop.c): al cargar, el bloque de P2 (`itm[256..]`) recibe una pistola (id 5) con 15 balas, ya equipada. Hasta el hito 2b, `COOP_TEST` se la daba a P1. Quitar el define antes del build final. Si se guarda partida con `COOP_TEST`, la pistola queda en el bloque de P2 de esa partida.
+
+**Desde el 2026-10-11 la tarjeta es otra:** el slot 1 tiene 1 vacía, 2 "Claire / 01 / NO_DATA" y 3 "Chris / 01 / T Facility: UG". En la pantalla de la tarjeta, la flecha abajo del teclado del arnés no movió el cursor (X sí funciona); para cargar una partida concreta, que la elija el usuario. Dos Start en el título llevan a la intro y a la pantalla de la tarjeta.
 
 En el inventario, el cursor empieza en la lista de objetos; el mechero está en la casilla fija (STANDARD).
 
@@ -62,6 +66,16 @@ Los `printf` no salen en el log, pero se puede verificar el sonido en un savesta
 | `irx.py syms` / `irx.py FUNC…` | Símbolos y desensamblado de `TSNDDRV.IRX` |
 
 Para ver si un sonido ha llegado a sonar, guardar el savestate justo después y buscar en `SPU2.bin` (antes del byte 0x10004) direcciones en medias palabras dentro de la zona de sus muestras.
+
+## Diagnosticar un cuelgue
+
+Herramientas del hito 8 en `.superpowers/sdd/2026-10-10-coop-hito8/tools/`: `isoelf.py ISO SALIDA` (saca `SLUS_201.84` de una ISO), `syms.py A.elf B.elf` (símbolos que solo están en uno o cambian de tamaño) y `rd8.py ESTADO.p2s XMAP` (variables del hito 8, flags de `sys` y estado de P1/P2).
+
+1. **Reproducir con el arnés** sobre la ISO que falla: `$Global:PX_Iso = "...\RECVX_TEST.iso"` después de cargar `pcsx2.ps1`. `FPS: no` en la barra de PCSX2 significa que el EE no termina frames (bucle de espera).
+2. **Guardar un savestate** (`SaveState`, F1) y leer el estado:
+   - cargador: `ts_flg 0x80` y `cb_flg 0x800000` con `ply` a cero = aún cargando; `coop_ld_mode` dice en qué paso está la carga de P2 (6 = esperando a `coopSeStep`);
+   - sonido: `SpqFileReadRequestFlag`, `SdReadMode`, `trans_level`, `get_iop_snddata.se_sum[]` frente a `SE_HD_CHECK[]`, y la cola `sndque_tbl` con `sque_r_idx`/`sque_w_idx` (ver [world-systems.md](../architecture/world-systems.md#driver-de-sonido-iop-y-memoria-spu2)).
+3. **Comparar con un build que funciona:** sacar el ELF de cada ISO con `isoelf.py`, ver qué cambia con `syms.py` y, si lo que cambia no se ejecuta en el cuelgue, sospechar de direcciones fijas: buscar en la RAM de los dos savestates qué punteros apuntan a la zona dañada. Así se encontró el heap de la libc ([rooms-and-memory.md](../architecture/rooms-and-memory.md#memoria)).
 
 ## Lo que no se puede probar sin el usuario
 
