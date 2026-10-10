@@ -10,8 +10,9 @@
 > - [x] Milestone 1 — Player 2 appears next to Claire and moves with controller 2
 > - [x] Milestone 2a — Player 2 wears Claire's alternate outfit, with hands and her own ponytail
 > - [x] Milestone 2b — Player 2 aims and shoots (same weapon as player 1, shared ammo, rumble on controller 2)
-> - [ ] Milestone 2c — Player 2's own inventory (Start on controller 2), own ammo and weapon
-> - [ ] Milestone 3 — Enemies attack player 2; player 2 can be hurt and die
+> - [ ] Milestone 2c — Player 2's own weapon (own weapon loader, own ammo, starts with the knife)
+> - [ ] Milestone 2d — Player 2's own inventory (Start on controller 2), picking up items, shared item box
+> - [ ] Milestone 3 — Player 2's own health; enemies go after the nearest player; game over if either player dies
 > - [ ] Milestone 4 — Player 2 interacts with the world (examine, pick up items, open doors, push boxes)
 > - [ ] Milestone 5 — Co-op camera and positional sound for player 2
 > - [ ] Milestone 6 — Events and cutscenes with two players

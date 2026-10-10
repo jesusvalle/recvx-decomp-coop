@@ -47,13 +47,13 @@ Tipos de `itemdata[].type`: `0x1` arma equipable, `0x2` munición, `0x8` curaci�
 | **256..382** | **Sin referencias en el código**: solo `AllItemInit` lo pone a cero. Libre |
 | 383 | Bits de archivos leídos (fileview.c:128, 351; itemview.c:1201-1227) |
 
-Riesgo sobre 256..382: varios opcodes de script calculan el índice con operandos del guion (`bhItemGetGet` 0xB2 `itm[v0*16+2]`, event.c:7759; `bhItemGetGetEx` 0xC2; `bhItemPlToSBox` 0xB7 `v0*16`; `bhPlItemLostEx` 0xBF `224+v1`). Solo llegarían a 256 o más con `v0 ≥ 16` o `v1 ≥ 32`; no se han escaneado los RDX para comprobarlo. Además, si el baúl general está lleno, el bucle de `bhItemSBoxToIBox` (0xB8, event.c:7957-7971) puede pasar de 192.
+**256..382 está libre también en los guiones:** se escanearon los scripts de las 205 salas (los operandos reales de 0xB2/0xB7/0xC2 van de 0 a 2, y 0xBF apunta a `itm[224]`); `bhItemSBoxToIBox` llega como mucho a unos 222. Detalle del riesgo que se descartó: varios opcodes de script calculan el índice con operandos del guion (`bhItemGetGet` 0xB2 `itm[v0*16+2]`, event.c:7759; `bhItemGetGetEx` 0xC2; `bhItemPlToSBox` 0xB7 `v0*16`; `bhPlItemLostEx` 0xBF `224+v1`). Solo llegarían a 256 o más con `v0 ≥ 16` o `v1 ≥ 32`; no se han escaneado los RDX para comprobarlo. Además, si el baúl general está lleno, el bucle de `bhItemSBoxToIBox` (0xB8, event.c:7957-7971) puede pasar de 192.
 
 ### Otros datos por personaje
 
 - `sys->ply_hp[4]`, `ply_wno[4]` y `ply_stflg[4]`. Se escriben en la partida nueva (system.c:487-494), en `bhPushGameData` (room.c:1030-1039), en la máquina de escribir (bup_00.c:364-374), en el cambio de personaje (system.c:1737, 1754-1755) y desde scripts (event.c:830, 1297, 7421, 7452, 7773, 7784). Solo se leen con índice `sys->ply_id` (player.c:671-675, 1001-1004; room.c:487, 501; system.c:1795).
 - **Mochila:** `bhCheckSubPack` (player.c:1080-1117) pone `gm_flg 0x8000000` según `ev_flg` 6/7/8 para `ply_id` 0/1/2. Es un único bit para el personaje actual. En el Battle Game está siempre activa (sub1.c:3392-3395).
-- `standard[3][2]` (sub1.c:1287): objetos que no se guardan en el baúl, por `ply_id`: `{55, 50}` para Claire (55 = mechero; 50 sin confirmar), `{55, -1}`… Solo tiene 3 filas.
+- `standard[3][2]` (sub1.c:1287): por `ply_id`, los objetos que van a la casilla especial `[1]` al moverlos con el baúl (sub1.c:7865-7895, 7950): `{55, 50}` para Claire (55 = mechero; 50 sin confirmar), `{55, -1}`… Solo tiene 3 filas.
 
 ## Abrir el inventario
 
@@ -148,7 +148,8 @@ Riesgo sobre 256..382: varios opcodes de script calculan el índice con operando
 
 - Se abren examinando con el botón de acción: zona tipo 4 con `attr & 0x2`, que pone `cb_flg 0x40000` (hitchk.c:4891-4905), o la tapa `bhObjItmBox` (objitm.c:799-831). Las variantes A y B usan `cb_flg 0x80000` y `0x100000` (hitchk.c:4893-4899).
 - La pantalla del baúl es `StatusMain` en modo 4, con `pip` = inventario del personaje y `bxp` = baúl.
-- El baúl general es compartido. `ItemBoxChange` aplica `standard[ply_id]` (el mechero y otros objetos fijos no se guardan) y reglas propias de `ply_id == 0`.
+- El baúl general es compartido. `ItemBoxChange` (sub1.c:7760-7990) aplica `standard[ply_id]` (qué objeto va a la casilla `[1]`) y reglas propias de `ply_id == 0`: en la sala 9-26 los objetos clave no se pueden sacar; los ids 105, 106 y 121 no se pueden guardar; en la sala 0-9 solo se guarda el tipo `0x400` (sub1.c:7787-7812). Mover el arma equipada pone `plp->wpnr_no = 0` y `mn_mode0 = 3` (sub1.c:7924-7934).
+- La tapa del baúl (`bhObjItmBox`, objitm.c:799-831) corre en `bhControlObjItm`, fuera del update del jugador: en `case 2` pone `cb_flg |= 0x40000` y en `case 3` borra `plp->stflg 0x10000`.
 
 ## Máquina de escribir
 
@@ -163,3 +164,24 @@ Riesgo sobre 256..382: varios opcodes de script calculan el índice con operando
 ## Opcodes de script de inventario
 
 0x11 (`bhPlItemCheck`, probable), 0x27, 0x31, 0x4D, 0x89 (`bhPlayerChangeSet`), 0xB2 (`bhItemGetGet`), 0xB7 (`bhItemPlToSBox`), 0xB8 (`bhItemSBoxToIBox`), 0xBF (`bhPlItemLostEx`), 0xC1, 0xC2 (`bhItemGetGetEx`), 0xC7, 0xC9, 0xCF (`bhExGameItemInit`). Números comprobados contra `bhScenarioJmpT` (event.c:59); el detalle de los que no tienen nombre aquí está sin documentar.
+
+## Recoger un objeto
+
+1. **Botón de acción** (player.c:1686, dentro de `bhControlPlayer`): con `mode0 == 1`, sin `stflg & 0x10080`, sin `flg & 0x4000004`, sin `cb_flg & 0x4017` y con `pad_ps & 0x200`, llama a `bhCheckExmAtari(plp)`.
+2. **`bhCheckExmAtari`** (hitchk.c:4588-4962) no lee el mando. Sondea 5 puntos delante del jugador (`exp0` fpx/fpz/arn, `ay`, `flr_no`), borra `cb_flg 0x100` y recorre `rom->etcp` y `sys->metcp`. En la primera zona que coincida pone `cb_flg |= 0x100` y `sys->etc_idx = i`. Según el tipo de zona:
+
+   | Tipo | Qué es | Qué escribe |
+   | --- | --- | --- |
+   | 0 | Puerta | `stflg |= 0x80000000`, `cb_flg |= 1`, `st_flg |= 4`, `sys->ddmd`, `sys->door` |
+   | 1 | Escaleras / escalerilla | `sys->pl_htp`; marca la zona en uso (`attr 0x400000`); `act_kdu/kdd/hsu/hsd` leen `sys->pl_htp` en cada frame |
+   | 2 | Escalón y saliente | Solo estado del jugador y `st_flg` |
+   | 3 | Examinar | `gm_flg 0x1000`, `fixcno`, cámara fija (`cb_flg 0x8`, `st_flg 0x80`), `bhSetMessage(0, …)`, `pad_onb` |
+   | 4 sin `attr & 2` | Objeto | `attr & 0x10` → `cb_flg |= 0x20000` (archivo); `sys->sb_id = itwp[prm0].id`; con `attr & 1` se agacha (`bhCPM2_act_cro`, que al acabar pone `cb_flg |= 0x10` y espera a `bhStandPlayerMotion`); si no, `cb_flg |= 0x10` directamente |
+   | 4 con `attr & 2` | Baúl | `attr & 0xC` → baúles A/B (`cb_flg 0x80000/0x100000`); `prm0 == 0xFF` → `cb_flg |= 0x40000`; si no, la tapa `obwp[prm0]` y acción forzada (`stflg 0x18000`) |
+3. **`bhCheckSubTask`** ve `cb_flg & 0x64010` (petición automática) y abre la pantalla aunque haya `st_flg & 4`.
+4. **`StatusMain`, init** (sub1.c:3281-3405): prioridad archivo (`0x20000`) > coger (`0x10`, `itemid = sys->sb_id`) > baúl (`0x1C0000`) > inventario. `pip` solo se asigna aquí (`StatusInit`, `ItemBoxInit`); volver del mapa reinicializa.
+5. **`GetItem`** (sub1.c:3727-4161): pregunta sí/no con mensajes, que corren en la tarea 8 (`bhControlMessage(1)`) y leen `sys->pad_*`. Si se acepta, `cb_flg |= 0x800` y escribe en `pip`. Con el inventario lleno, mensaje 154 y no coge nada.
+6. **El objeto desaparece** por el opcode 0x0E `bhItmCk` (event.c:2090-2175), que corre cada frame en `scd1` de la sala (formato `0E 00 <it_flg u16> <etc_idx> <v5>`): si `sys->etc_idx` coincide y hay `cb_flg 0x800`, activa `it_flg` (se guarda), oculta `itwp[prm0]` y quita `0x800`. Al cargar la sala, el opcode 0x23 `bhItmSetCk` vuelve a ocultar lo ya cogido.
+7. **Cierre:** `ItemTaskCheck` llama a `bhStandPlayerMotion()` sobre `plp` (saca al jugador de agacharse) y borra `cb_flg 0x10/0x20000/0x1C0000`.
+
+Los opcodes de inventario de los guiones (0x11 `bhPlItemCheck`, 0x31 `bhPlItemLost`, 0x4D, 0xBF, 0xC1 `bhArmsItemSet`, 0xC7 `bhPlItemChangeM`, 0xC9 `bhPlItemTamaSet`, 0x26/0x27 armas) solo miran `itm[ply_id*16]`. Usar un objeto clave (`Use_01/05`) depende de `cb_flg 0x200` y `flr_idx` (el activador de suelo del jugador).

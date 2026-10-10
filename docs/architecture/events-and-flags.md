@@ -362,3 +362,16 @@ En esta intro Claire **no** pasa por `mode0 = 7`: se la congela escondiéndola. 
 - Bits sin setter en C: `gm_flg` 0x1/0x8/0x400000, `cb_flg` 0x2000000/0x80000000, varios de `ss_flg`. Probablemente los activan scripts.
 - Qué significan `gm_mode` 0 y 1.
 - Cuántos bytes ocupan algunos subops de `Common_controll` (10, 22, 24, 34, 35); hace falta saberlo antes de escribir un desensamblador de scripts.
+
+## Parte F — Game over
+
+- Lo lanza el update del jugador que muere (`bhCPM0_die`, `bhCPM0_enedie`): `ts_flg &= ~0x4000` y `gov_md0/gov_md1 = 0`, solo si el bit estaba puesto (una segunda muerte no lo reinicia).
+- Tarea de game over (gameover.c:26): `bhSelectContinue` → `bhInitGameOver` (`ts_flg |= 0x100`, fundido) → `bhMainGameOver`. Durante 70 frames el juego sigue (gameover.c:236-342); después `sp_flg = 0x20` y `pt_flg = 0`.
+- "Continue" lee `sys->pad_ps` (el mando de P1, gameover.c:467-509): "Sí" → `bhPopGameData` (reintento); "No" → `bhReturnTitle`. La voz final es `CallPlayerDeadVoice(sys->ply_id)`.
+- `plp->flg 0x2` = muerte terminada por el enemigo, lanzar game over; `stflg 0x40000` = muerte bloqueada mientras un enemigo agarra (en01.c:6839); `stflg 0x200000` = veneno de Nosferatu.
+
+## Parte G — Scripts: detalles útiles
+
+- La tabla `evtp` de cada sala son offsets `u32` relativos: `[0] = scd0`, `[1] = scd1`, `[2 + n] = evd[n]`; el número de entradas es `primer_offset / 4` (event.c:12963).
+- Opcodes de objetos: 0x0E `bhItmCk` (quita del mundo el objeto cogido, ver [inventory.md](inventory.md#recoger-un-objeto)), 0x23 `bhItmSetCk` (oculta al cargar la sala los ya cogidos), 0x8A `bhPlayerPoisonCk` (mira `plp`), 0xAE `bhPlayerPoison2Cr` (limpia `ply_stflg[0]`).
+- `cb_flg 0x100` (zona de acción encontrada) se mantiene hasta la siguiente pulsación de acción. `cb_flg 0x10` y `0x20` sobreviven al cambio de sala (máscara `0xAF8000BB`).

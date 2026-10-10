@@ -86,7 +86,7 @@ Es la tarea 20. Es una máquina de estados con `sys->mn_mode0..3`, que se asigna
 | 2 | **Cambio de sala**: paso 0 hace `memp = mempb`; después pasa a modo 4. No recarga el personaje salvo con `cb_flg & 0x80` (cambio de personaje, system.c:1768-1817) |
 | 3 | **Cambio de arma** desde el inventario: lee el fichero de arma y llama a `bhReadWeaponData` (system.c:1573-1608). Ver [inventory.md](inventory.md) |
 | 4 | **Carga de sala**: ver abajo |
-| 5 | **Abrir el inventario** (system.c:1962-2036). Ver [inventory.md](inventory.md) |
+| 5 | **Abrir el inventario** (system.c:1962-2036). Lee `ITEM.AFS[145]` (1.088.048 B) en `memp` sin avanzarlo, y `StatusMain` reserva encima los 128 KB de `sitem.keep`. Ver [inventory.md](inventory.md) |
 | 6 | Modelo 3D del objeto que se examina en el inventario (itemview.c:284-315) |
 
 **Lectura de ficheros:** asíncrona y por un único canal, compartido con el sonido (sdfunc.c:3053-3133).
@@ -123,3 +123,6 @@ Es la tarea 20. Es una máquina de estados con `sys->mn_mode0..3`, que se asigna
 1. El botón de acción sobre una zona de puerta (`bhCheckExmAtari`, tipo 0) rellena `sys->door` y pone `cb_flg |= 1`. Los scripts también pueden abrir puertas con `bhSetDoorCall` → `bhSetDoorDemo` (room.c:883).
 2. `bhMainSequence` llama a `bhStartDoorDemo` (room.c:940): fundido, fija `sys->stg_no/rom_no/pos_no` y `mn_mode0 = 2`.
 3. La animación de la puerta corre en la tarea 11 (`bhSysCallDoordemo`, door.c) mientras se carga la sala nueva.
+
+- Las tareas corren en orden ascendente de bit (main.c:195-200): por ejemplo, Itemselect (9) va antes que Monitor (20) en el mismo frame. `mn_md2`/`mn_md3` no los usa el modo 3 y viajan enteros por `mn_stack` cuando se apila un modo.
+- Fuera del pool: `_end` = 0x01E32000 (xMAP) con 1 MB de pila; quedan unos 0,8 MB de RAM libre (si alguna librería del SDK usa `malloc`, sin confirmar).

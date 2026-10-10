@@ -80,8 +80,8 @@ Configura el jugador a partir de `PlyInfo[ply_id]`. Lo importante:
 | 2 | `bhCPM0_damage` | Recibir daño |
 | 3 | `bhCPM0_die` (:6346) | Morir (lanza el game over) |
 | 4 | `bhCPM0_nage` | Agarrado por un enemigo |
-| 5 | `bhCPM0_enedam` | Daño causado por un enemigo (deducido del nombre) |
-| 6 | `bhCPM0_enedie` | Muerte causada por un enemigo (deducido del nombre) |
+| 5 | `bhCPM0_enedam` | Daño causado por un enemigo (lo dirige el enemigo; por ejemplo, los jefes de en15) |
+| 6 | `bhCPM0_enedie` | Muerte causada por un enemigo: pasiva hasta que el enemigo pone `flg & 0x2`; entonces lanza el game over |
 | 7 | `bhCPM0_event` (pl_evt.c:62) | Controlado por una cinemática (`pl_smove00..08`) |
 | 8 | `bhCPM0_nothing` | Nada |
 
@@ -217,3 +217,18 @@ Si se ejecuta el código del jugador con otra instancia en `plp`, esto se ve afe
   - Antes y después se anulan `psh_ct` y el bit 0x80 de `stflg`. Si no, el empuje automático de cajas acabaría con el objeto caja poniendo `mode3 = 6` a P1.
 - **Nunca se ejecuta `bhSetPlayer` sobre `ply2`:** llama a `bhPushGameData`, engancha el pelo y cambia la cámara.
 - **Ocultar:** `stflg & 0x1000000` oculta a la vez el modelo, el update, la sombra (`bhEff001`) y los objetos enganchados. P2 se oculta también mientras P1 no sea Claire (`sys->ply_id != 0`).
+
+## Salud, daño y muerte
+
+Detalle por tipo de ataque en [combat.md](combat.md#daño-al-jugador).
+
+- **Vida:** `plp->hp`, como máximo 160 (320 con `gm_mode == 2`). No hay indicador durante el juego: solo la leen la pantalla de estado (`StatusInit`, sub1.c:1462-1491, umbrales 120/60/30 y 4 = veneno), los guiones (event.c:762, 874) y el guardado (bup_00.c:374).
+- **`dmlvl`** (`EXP_WORK + 0x14`, `bhCheckPlayerKegaMotion`, player.c:1237-1273): `hp >= 120` → 0 (1 con veneno `stflg & 0x280000`), 30-119 → 1, `< 30` → 2. Elige las animaciones `PlMtnAct[wpntp][dmlvl][…]` (cojear); con `dmlvl == 2` el giro baja a 0,8. La misma lógica está en `bhSetPlayer`, `bhResetPlayer` y `bhStandPlayerMotion`.
+- **Daño continuo** (player.c:1400-1413): con `stflg & 0x281000` y sin `0x40000`, `hp--` cada 31 frames **sin bajar de 0**: el veneno no mata. `Use_00` quita el veneno `0x80000`; el de Nosferatu (`0x200000`) solo lo quita un guion (event.c:7372, deducido).
+- **Quién escribe el daño:** el atacante, durante su update (enemigo o efecto): `hp`, `flg |= 0x10004`, `stflg |= 0x10000`, `mode0 = 2/4/5/6` y `mode1-3`. El update del jugador solo reproduce la reacción (`bhCPM0_damage`, player.c:6222-6351: animación 71/72 + 2·`mode2`, voz y retroceso; al acabar quita `flg 0x10004` y `stflg 0x10000`). `flg 0x4` ("ya le están pegando") hace que los demás enemigos no ataquen.
+- **Muerte y game over:** se lanza en tres sitios, siempre dentro del update del jugador que muere: `bhCPM0_die` (player.c:6430-6435 y 6537-6542, según caiga hacia delante o hacia atrás) y `bhCPM0_enedie` (player.c:6719-6724). Los tres hacen `ts_flg &= ~0x4000` y `*(int*)&sys->gov_md0 = 0`. `bhCPM0_die` además pone a cero `sys->fade_*` (corta un fundido en curso). `stflg 0x40000` = muerte bloqueada mientras un enemigo agarra (en01.c:6839): el jugador pasa a `mode0 6` y el enemigo pone `flg |= 2` al acabar.
+- **Persistencia:**
+  - `hp` vive en `ply` y sobrevive al cambio de sala (`bhInitRoomChangePlayer` conserva `stflg & 0x78280000`, player.c:870).
+  - `sys->ply_hp/ply_stflg/ply_wno[4]` (por `ply_id`) entran en la partida guardada, y `bhFirstGameStart` inicializa los cuatro huecos (system.c:487-492).
+  - `bhPushGameData` (instantánea de reintento) solo copia el hueco de `sys->ply_id`. La llaman `bhSetPlayer` (player.c:856), el opcode de punto de reintento (event.c:8176), el cambio de personaje y la carga de sala (system.c:1838, 1915) y el guardado (ps2_SaveScreen.c:1408).
+- **El agarre** anima al jugador con el banco de animaciones del enemigo (`pl->mnwP = epw->mnwP`, en01.c:7584, con `En01_PlyMtn_OffsetTbl[sys->ply_id]`) y después vuelve a `mnwPb`.

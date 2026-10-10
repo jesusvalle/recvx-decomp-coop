@@ -97,6 +97,9 @@ Ejemplos (deducidos): 2 = cuchillo, 3/4 = pistolas, 7/8/9 = dos armas, 11 = esco
   - sube las texturas con `bhSetMemPvpTexture` y libera las anteriores si `!(ss_flg & 0x100)` (dread.c:201-206, 262-267);
   - copia las animaciones a `sys->plwmtp` (64 KB) y las reubica con `bhMnbBinRealize` en `&plp->mnwP[100]` (dread.c:317-344).
 - Se llama en tres sitios del cargador: partida (system.c:1447-1460), cambio de arma desde el inventario (modo 3, system.c:1577-1592, que además pide el banco de sonido `RequestArmsSoundBank`) y cambio de personaje (system.c:1797-1810).
+- El fichero de cuerpo trae 100 huecos de animación (0-99) y el de arma 20 (100-119), pero la tabla necesita las 512 entradas (`bhCPM0_nothing` usa la 218, player.c:6733). El bucle de animaciones de arma (dread.c:325-339) **no** pone a NULL los huecos vacíos, al contrario que el del cuerpo (dread.c:112): quedan entradas viejas. `wmt_size` y `bmt_size` solo se escriben. Otros usos de `sys->plmthp`: la polilla (en27.c:61) y opcodes de guion (event.c:9511, 9548, 9637, 10962, 11182).
+- Ficheros de arma de Claire (`SYSTEM.AFS[20..40]`): de 267.536 a 382.008 B (las armas dobles 7/8/9 son las más grandes); modelo derecho ≤ 26.108 B, izquierdo ≤ 17.076 B, animaciones ≤ 47.684 B. `[20]` son solo las manos (1 hueso); el `[22]` (cuchillo) trae 2 huesos. Los ficheros 41-49 miden 11 B (vacíos).
+- `bhReadWeaponData` desreferencia `op->mlwP` sin comprobar NULL y, salvo en la primera carga (`ss_flg 0x100`, puesto por `bhFirstGameStart` y quitado por `bhFinishRoom`), libera el `texP` del arma anterior.
 - Índices que usa el combate: `PlMtnWpn = {100, 104, 109, 114, 101}` (player.c:240); 102/107/112 (fin de disparo); 103/108/113 (rebote del cuchillo); 116 (recarga); 117 y +13/+17 (dos armas).
 
 ## Objetos de arma (`sys->obwp[0/1]`)
@@ -111,7 +114,7 @@ Ejemplos (deducidos): 2 = cuchillo, 3/4 = pistolas, 7/8/9 = dos armas, 11 = esco
   - `bhCalcModel`: matriz = `owP[lkono]` del dueño × traslación × rotación (MdlPut.c:240-253).
 - **Dibujo:** `bhDrawObjItm` → lista `ob_hlg` (con `pt_flg & 0x1`) → `bhDrawObject` (objitm.c:631-680).
 - Flags de animación que escribe el disparo en `obwp[0]`: `0x80000` corredera, `0x400000` bombeo, `0x800000` apertura (player.c:5343-5345, 5428-5449, 5619-5621, 6004-6019, 6083; playpch.c:654-656, 817-819).
-- Otros usos de `obwp[0/1]`: cargador de las armas 12/13 (effsub1.c:2356), tintado de Alexia (en12.c:1193-1194), mira (screen.c:312, 323), game over (gameover.c:304-305), escenas que cambian las manos (`bhPlyHandChange`, event.c:7378-7455) y vaciado al cambiar de personaje (system.c:1749-1752).
+- Otros usos de `obwp[0/1]`: cargador de las armas 12/13 (`bhEff007`, effsub1.c:2356, desde el update de efectos: escribe `objP[2].evalflags` del arma de `obwp[0]` aunque el disparo sea de otro; con un modelo de menos de 3 huesos escribe fuera del array), tintado de Alexia (en12.c:1193-1194), mira (screen.c:312, 323), game over (gameover.c:304-305), escenas que cambian las manos (`bhPlyHandChange`, event.c:7378-7455) y vaciado al cambiar de personaje (system.c:1749-1752).
 - Huecos de `obwp[]`: 0/1 armas, 2 pelo o accesorio, 3 solo se vacía, 4 en adelante objetos de la sala (los guiones los indexan con datos de la sala).
 
 ## Del impacto al daño
@@ -189,3 +192,10 @@ P2 combate con el mismo código (`bhControlPlayer` con `plp = &ply2`). Además d
 Al sacar a P2 del combate a la fuerza (cambio de arma de P1, eventos) hay que hacer lo que hace `bhCPM2_act_wre`: `stflg &= ~0x10400` y `flg &= ~0x10000`. La entrada al combate exige `!(stflg & 0x10000)` (player.c:1797) y ese bit solo lo quitan `wre`, `cro` y el daño (`coopLeaveCombatP2`).
 
 Limitaciones: la IA del enemigo herido sigue usando a P1, las explosiones de P2 pueden dañar a P1, y las armas con mira no se pueden usar con P2.
+
+## Sonido de armas
+
+- Todos los sonidos de arma van al banco 1: `CallPlayerWeaponSeEx` fuerza `(SeNo & 0xFFFF00FF) | 0x100` y alterna los canales 8/9 (sdfunc.c:1546-1579); no suena nada mientras se carga un banco de armas.
+- Hay cinco bancos fijos, `SE_BANK = {0, 4, 5, 6, 7}` (ps2_sg_sd.c:1868-1872), todos ocupados: 0 común (`COMMON.MLT`), 1 armas (`ARMS_xxx.SPQ`, 20 bancos), 2-3 sala, 4 voz (`CORE_xxx`). El banco lo fija la cabecera del `.SPQ` (`SPQ_HEADER.BankNo`, sdfunc.c:654). `LoadSoundPackFile` lee el `.SPQ` en `memp` con `bhGetFreeMemory`/`bhReleaseFreeMemory` (sdfunc.c:618-697).
+- Casi todas las armas disparan con el sonido 261 (lista 5); la 10 y la 19 con el 271. Comunes: 257/258 cargador, 263/264 corredera, 260 sin munición, 265 bombeo, 275/277 cuchillo, 276 (player.c:1733).
+- **Solo puede haber un banco de armas cargado**: el del arma de `ply`. Un segundo jugador con otra arma suena con el banco de P1 (sonido de otra arma) o sin sonido si P1 no lleva un arma con banco (cuchillo, mechero, nada). Cargar un segundo banco exigiría tocar el driver del IOP (no decompilado).

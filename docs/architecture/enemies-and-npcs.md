@@ -32,6 +32,16 @@ Las entidades de la sala salen de `rom->enep` en `bhSetRoom` → `bhSetEneMdl` (
 - **Ayudas compartidas que usan `plp`:** zonzon.c, zonzon1.c, `bhSearchPlayer` (pwksub.c:664) y `bhCheckPlayer` (hitchk.c:5712).
 - **Ayudas que reciben parámetros:** `bhEne_AttackHitCheck` (zonzon1.c:611) y `bhCheckRoute` (rutchk.c:5).
 - **Agarres:** los `_PlayerControl` / `_Nage` mueven a `plp` y escriben `sys->pad_on`.
+- **Ningún enemigo guarda a quién ataca:** todos leen `plp` en cada frame. El agarre del zombi vive en flags privados del enemigo (`EXP0_I(0x40)`: `0x80` agarrando, `0x20000` controla al jugador, `0x80000` lo coloca) más el `mode0` del jugador; si `plp` cambiara a mitad, el enemigo movería al otro. Excepciones con puntero guardado (`lkwkp = plp`): el gusano (en01sub.c:1417), la larva de polilla (en27.c:84) y los efectos effsub2.c:3188 y 4266.
+- **Nadie usa el global `ply` ni compara con `&ply`** en enemigos, zonzon, eneset, efectos, weapon, hitchk ni pwksub (comprobado con grep). rutchk.c no lee `plp`.
+- **Más funciones compartidas que leen `plp`:** `bhCheckEnemies` (hitchk.c:5788), `bhEne_CheckEnemiesBall` (zonzon1.c:529), `bhSearchNearEnemy2` (pwksub.c:395), sangre y trozos de carne (zonzon.c:462, zonzon1.c:73, 114, estéticos) y en15 `target_direction/distance` (en15.c:265, 281).
+- **Los enemigos no comprueban `stflg 0x1000000`** (jugador oculto): solo `0x80000000` (en puerta), `flg 4/2` y `hp`.
+- **Estado global que escriben:**
+  - el mando: `sys->pad_on &= ~0xF` al soltar un agarre, y `sys->pad_ps` en el machaque de botones (ver [combat.md](combat.md#daño-al-jugador));
+  - temblores de cámara (`cam.ofx/ofy/ofz`, en02, en13, en17) y `sys->rm_flg`;
+  - en15 y en25 quitan la mira y la primera persona (`gm_flg`/`st_flg`/`pt_flg`); en25:207 hace `pt_flg &= ~0x1`, que oculta el dibujo de los jugadores;
+  - en15:3325 y 3345 ponen `ts_flg |= 0x4000`.
+- **La larva y el huevo de polilla** (en27) usan los modelos 6 y 7 del jugador (en27.c:61-66, 202), que solo trae el fichero de la Claire normal.
 - **Disparos del jugador:** el apuntado automático y los impactos buscan entradas de `ene[]` con `flg & 0x20` (playpch.c:349, weapon.c:615-619). Detalle en [combat.md](combat.md).
 - **Del impacto a la IA:** el disparo (`bhCheckGunAtari`) solo anota el impacto en el enemigo (`flg |= 0x4`, `dpx/dpy/dpz`, `dvx/dvy/dvz`, `dam[]`…). El enemigo lo procesa en su siguiente update y borra `flg 0x4`; después su IA usa `plp` (ejemplos: en01.c:8228, en05.c:3032). Solo cuenta un impacto por enemigo y frame. Ver [combat.md](combat.md).
 

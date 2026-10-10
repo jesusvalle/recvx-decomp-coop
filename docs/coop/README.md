@@ -41,32 +41,44 @@ Leyenda: `[x]` hecho; `[ ]` pendiente. "(sin probar)" = implementado pero aún n
 ### ✅ Hito 2b — P2 dispara
 
 - [x] Apuntar (R1) y disparar (X) con la misma arma que P1
-- [x] Munición compartida con P1 (sin probar la recarga)
-- [x] Los disparos de P2 dañan a los enemigos (sin probar)
-- [x] El fogonazo sale en la mano de P2 y el arma de P1 no se anima con sus disparos (sin probar)
+- [x] Munición compartida con P1, incluida la recarga
+- [x] Los disparos de P2 dañan a los enemigos
+- [x] El fogonazo sale en la mano de P2
+- [x] El arma de P1 no se anima con los disparos de P2 (sin probar)
 - [x] Dos impactos en el mismo enemigo y frame cuentan los dos (sin probar)
-- [x] Las vibraciones de P2 van al mando 2 (sin probar)
+- [x] Las vibraciones de P2 van al mando 2
 - [x] Armas con mira bloqueadas para P2
-- [x] Si P1 cambia de arma con P2 apuntando, P2 vuelve a reposo y puede volver a apuntar (sin probar)
+- [x] Si P1 cambia de arma con P2 apuntando, P2 vuelve a reposo y puede volver a apuntar
 
-### Hito 2c — Inventario propio de P2
+### Hito 2c — Arma propia de P2
 
-- [ ] Start en el mando 2 abre la pantalla de inventario de P2 (el juego se pausa para los dos)
-- [ ] Inventario de P2 guardado en `sys->itm[256..]` (entra en la partida guardada sin cambiar el formato)
-- [ ] Munición propia de P2
-- [ ] Usar objetos curativos sobre P2
-- [ ] Equipar un arma distinta de la de P1 (cargador de arma propio: modelo, animaciones y texturas)
-- [ ] Sonidos del arma de P2 cuando no coincide con la de P1 (el banco de sonido de armas es único)
-- [ ] Decidir cómo consigue objetos P2: recoger, baúl o pasárselos P1
+Spec: [2026-10-11-coop-hito2c-design.md](../superpowers/specs/2026-10-11-coop-hito2c-design.md).
 
-### Hito 3 — Los enemigos atacan a P2
+- [ ] Bloque de inventario de P2 en `sys->itm[256..271]` (se guarda con la partida sin cambiar el formato), sembrado con el cuchillo
+- [ ] Cargador de arma propio: modelos de manos y arma, animaciones y texturas de P2
+- [ ] Tabla de animaciones propia (cuerpo copiado de P1, arma propia)
+- [ ] Munición propia y aviso de arma vacía por jugador
+- [ ] P1 y P2 con armas distintas a la vez (los disparos de P2 suenan con el banco de P1)
 
-- [ ] Cada enemigo persigue y ataca al jugador más cercano (apuntar `plp` al objetivo antes de actualizarlo)
-- [ ] Agarres y mordiscos sobre P2 (duran varios frames y escriben en el mando)
-- [ ] P2 recibe daño y se le ve herido
-- [ ] Muerte de P2 sin game over mientras P1 siga vivo; game over si mueren los dos
-- [ ] Cómo vuelve P2 tras morir (reaparecer junto a P1, curarse, etc.)
-- [ ] Explosiones: dañan también a P2, y las de P2 no a P1 (o fuego amigo opcional)
+### Hito 2d — Inventario de P2, recoger objetos y baúl
+
+Spec: [2026-10-11-coop-hito2d-design.md](../superpowers/specs/2026-10-11-coop-hito2d-design.md).
+
+- [ ] Start en el mando 2 abre el inventario de P2 (el juego se pausa para los dos)
+- [ ] Usar, combinar, examinar y equipar desde la pantalla de P2 (equipar usa el cargador de 2c)
+- [ ] P2 recoge objetos con su botón de acción, a su propio inventario
+- [ ] Baúl general compartido entre P1 y P2
+- [ ] Objetos clave en P2 bloqueados para usar hasta el hito 4
+
+### Hito 3 — Salud de P2 y enemigos que le atacan
+
+Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hito3-design.md).
+
+- [ ] Vida propia de P2, guardada con la partida (cojea con poca vida)
+- [ ] Cada enemigo persigue al jugador más cercano, sin cambiar de objetivo en mitad de un ataque o agarre
+- [ ] Agarres y mordiscos sobre P2, que se suelta con el mando 2
+- [ ] Ácido, gas, fuego y explosiones dañan también a P2
+- [ ] Game over si muere cualquiera de los dos, con el reintento normal
 
 ### Hito 4 — P2 interactúa con el mundo
 
@@ -105,6 +117,11 @@ Leyenda: `[x]` hecho; `[ ]` pendiente. "(sin probar)" = implementado pero aún n
 | D7 | **P2 se oculta mientras P1 no sea Claire** (`sys->ply_id != 0`). | P2 usa las animaciones de P1; con Chris no le valdrían. La parte de Chris queda para más adelante. Decidido por el usuario el 2026-10-10. |
 | D8 | **En 2b, P2 comparte la munición de P1** (`swork.pip` no cambia). | Es lo más equilibrado sin inventario propio; en 2c pasará a ser suya. Decidido por el usuario el 2026-10-10. |
 | D9 | **Las vibraciones de P2 van al mando 2.** | Tabla de vibración propia de P2 enviada al puerto 1; antes iban todas al mando 1. Decidido por el usuario el 2026-10-10. |
+| D10 | **Orden del hito 2 en adelante: 2c arma propia → 2d inventario, recoger y baúl → 3 salud y enemigos.** | El cuchillo inicial y equipar desde la pantalla de P2 necesitan antes el cargador de arma propio. Propuesto al usuario el 2026-10-11. |
+| D11 | **El inventario de P2 vive en `sys->itm[256..271]`, con metadatos (firma, vida, veneno) en `itm[272..279]`.** | Rango libre en el código y en los 205 guiones de sala, y dentro de la partida guardada: se guarda sin cambiar el formato. |
+| D12 | **P2 empieza con el cuchillo; cada jugador recoge a su propio inventario; el baúl general es compartido.** | Decidido por el usuario el 2026-10-11. |
+| D13 | **Los disparos de P2 suenan con el banco de sonidos del arma de P1.** | Solo puede haber un banco de armas cargado. Decidido por el usuario el 2026-10-11. |
+| D14 | **Los enemigos van a por el jugador más cercano; game over si muere cualquiera de los dos.** | Decidido por el usuario el 2026-10-11. |
 | D4 | **No se cambia la estructura de `SYS_WORK` ni de `BH_PWORK`.** El estado nuevo va en variables globales nuevas. | El rango `version..save_end` de `SYS_WORK` es el formato de la partida guardada y del reintento, y `bhInitSystem` usa un tamaño escrito a mano. Ver [rooms-and-memory.md](../architecture/rooms-and-memory.md). |
 
 ## Hito 1: P2 aparece y anda
@@ -171,7 +188,7 @@ Leyenda: `[x]` hecho; `[ ]` pendiente. "(sin probar)" = implementado pero aún n
 ### Se acepta que en este hito
 
 - la cámara siga solo a Claire;
-- los enemigos ignoren y atraviesen a P2;
+- los enemigos ignoren a P2 (P2 sí se aparta de ellos: su propio update llama a `bhCheckEnemies`);
 - las pisadas de P2 suenen donde está Claire;
 - P2 no pueda abrir puertas ni coger objetos.
 
@@ -266,12 +283,12 @@ Spec: [2026-10-10-coop-hito2b-design.md](../superpowers/specs/2026-10-10-coop-hi
 | # | Prueba | Estado |
 | --- | --- | --- |
 | 1 | P2 apunta con R1 y dispara con X (configuración A) con la misma arma que P1 | ✅ (usuario, con `RECVX_TEST.iso`) |
-| 2 | Los disparos de P2 dañan y matan enemigos | Pendiente |
-| 3 | Los disparos de P2 gastan la munición de P1; P2 recarga del inventario de P1 | Pendiente |
-| 4 | El fogonazo de P2 ilumina su mano, no la de P1; el arma de P1 no se anima con los disparos de P2 | Pendiente |
-| 5 | El mando 2 vibra con los disparos de P2; el mando 1 no | Pendiente |
+| 2 | Los disparos de P2 dañan y matan enemigos | ✅ (usuario) |
+| 3 | Los disparos de P2 gastan la munición de P1; P2 recarga del inventario de P1 | ✅ (usuario) |
+| 4 | El fogonazo de P2 ilumina su mano, no la de P1; el arma de P1 no se anima con los disparos de P2 | ✅ fogonazo (usuario); falta confirmar el arma de P1 |
+| 5 | El mando 2 vibra con los disparos de P2; el mando 1 no | ✅ (usuario) |
 | 6 | Pausa e inventario con una vibración en curso: ningún mando se queda vibrando | Pendiente |
 | 7 | Opción de vibración desactivada: tampoco vibra el mando 2 | Pendiente |
 | 8 | P1 y P2 disparan a la vez al mismo enemigo: cuentan los dos impactos | Pendiente |
-| 9 | P1 cambia de arma con P2 apuntando: P2 vuelve a reposo con la nueva arma | Pendiente |
+| 9 | P1 cambia de arma con P2 apuntando: P2 vuelve a reposo con la nueva arma | ✅ (usuario: vuelve a apuntar) |
 | 10 | Escopeta, armas automáticas y armas dobles con P2 | Pendiente |
