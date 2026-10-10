@@ -15,6 +15,84 @@ La arquitectura del motor en la que se basa este documento está en [../architec
 | 2026-10-10 | **Hito 2a implementado** (sin commits): P2 lleva el traje de Claire B, las manos con el arma de P1 y su propia coleta. Spec: [2026-10-10-coop-hito2a-design.md](../superpowers/specs/2026-10-10-coop-hito2a-design.md). Plan: [2026-10-10-coop-hito2a.md](../superpowers/plans/2026-10-10-coop-hito2a.md). Probado en PCSX2 cargando una partida guardada. Medido con `ramread.py`: margen de RAM en la peor sala ≈ 1,8 MB y del pool de texturas ≈ 1,4 MB. |
 | 2026-10-10 | **Hito 2b implementado** (sin commits): P2 apunta y dispara con la misma arma que P1, con munición compartida; sus vibraciones van al mando 2. Revisión final: dos fallos críticos corregidos (manos de P2 sin actualizar, bloqueo para volver a apuntar). El usuario confirma en PCSX2 que P2 dispara. |
 
+## Hoja de ruta
+
+Leyenda: `[x]` hecho; `[ ]` pendiente. "(sin probar)" = implementado pero aún no comprobado en PCSX2. El orden de los pendientes es una propuesta.
+
+### ✅ Hito 1 — P2 aparece y anda
+
+- [x] Leer el mando 2 (puerto 1) con su propia máquina de conexión
+- [x] P2 aparece junto a Claire al recibir el control y se mueve con el mando 2 (andar, correr, girar)
+- [x] P2 entra en la animación de espera sin desaparecer
+- [x] Eventos: P2 se oculta y se recoloca junto a P1 en cinemáticas, puertas y guiones; se congela con mensajes
+- [x] P2 sigue a P1 al cruzar puertas
+- [x] P2 choca con las paredes y no se solapa con P1 (sin probar)
+- [x] Demo de atracción sin P2
+- [x] Sin `COOP`, el ejecutable es idéntico al original
+
+### ✅ Hito 2a — Aspecto de P2
+
+- [x] Traje propio: Claire B (o el normal si P1 lleva Claire B), cargado en la carga completa
+- [x] Manos: clon del arma de P1, que cambia cuando P1 cambia de arma (cambio de arma sin probar)
+- [x] Coleta propia con su simulación, sin tocar la de P1
+- [x] P2 se oculta mientras P1 no sea Claire
+- [x] Memoria medida: margen de RAM y del pool de texturas en las peores salas
+
+### ✅ Hito 2b — P2 dispara
+
+- [x] Apuntar (R1) y disparar (X) con la misma arma que P1
+- [x] Munición compartida con P1 (sin probar la recarga)
+- [x] Los disparos de P2 dañan a los enemigos (sin probar)
+- [x] El fogonazo sale en la mano de P2 y el arma de P1 no se anima con sus disparos (sin probar)
+- [x] Dos impactos en el mismo enemigo y frame cuentan los dos (sin probar)
+- [x] Las vibraciones de P2 van al mando 2 (sin probar)
+- [x] Armas con mira bloqueadas para P2
+- [x] Si P1 cambia de arma con P2 apuntando, P2 vuelve a reposo y puede volver a apuntar (sin probar)
+
+### Hito 2c — Inventario propio de P2
+
+- [ ] Start en el mando 2 abre la pantalla de inventario de P2 (el juego se pausa para los dos)
+- [ ] Inventario de P2 guardado en `sys->itm[256..]` (entra en la partida guardada sin cambiar el formato)
+- [ ] Munición propia de P2
+- [ ] Usar objetos curativos sobre P2
+- [ ] Equipar un arma distinta de la de P1 (cargador de arma propio: modelo, animaciones y texturas)
+- [ ] Sonidos del arma de P2 cuando no coincide con la de P1 (el banco de sonido de armas es único)
+- [ ] Decidir cómo consigue objetos P2: recoger, baúl o pasárselos P1
+
+### Hito 3 — Los enemigos atacan a P2
+
+- [ ] Cada enemigo persigue y ataca al jugador más cercano (apuntar `plp` al objetivo antes de actualizarlo)
+- [ ] Agarres y mordiscos sobre P2 (duran varios frames y escriben en el mando)
+- [ ] P2 recibe daño y se le ve herido
+- [ ] Muerte de P2 sin game over mientras P1 siga vivo; game over si mueren los dos
+- [ ] Cómo vuelve P2 tras morir (reaparecer junto a P1, curarse, etc.)
+- [ ] Explosiones: dañan también a P2, y las de P2 no a P1 (o fuego amigo opcional)
+
+### Hito 4 — P2 interactúa con el mundo
+
+- [ ] Botón de acción para P2: examinar y leer mensajes
+- [ ] Recoger objetos con P2
+- [ ] Abrir puertas con P2 (la puerta lleva a los dos)
+- [ ] Empujar cajas con P2 sin afectar a P1
+- [ ] Usar objetos clave y resolver puzles con P2
+
+### Hito 5 — Cámara y sonido para dos
+
+- [ ] Política de cámara cooperativa (seguir a P1, punto medio, o teletransportar a P2 si sale del plano)
+- [ ] Pisadas y sonidos de P2 en su propia posición
+
+### Hito 6 — Eventos y cinemáticas con dos jugadores
+
+- [ ] Que P2 no salte junto a P1 en guiones cortos de examen (puzles)
+- [ ] Cinemáticas que muestran o colocan a P2 donde tenga sentido
+- [ ] Mechero y otros objetos de evento con P2
+
+### Hito 7 — Otros personajes y modos
+
+- [ ] P2 durante la parte de Chris (banco de animaciones y arma propios)
+- [ ] P2 en el Battle Game
+- [ ] Activar o desactivar el cooperativo desde el juego (sin recompilar)
+
 ## Decisiones tomadas
 
 | # | Decisión | Por qué |
@@ -197,14 +275,3 @@ Spec: [2026-10-10-coop-hito2b-design.md](../superpowers/specs/2026-10-10-coop-hi
 | 8 | P1 y P2 disparan a la vez al mismo enemigo: cuentan los dos impactos | Pendiente |
 | 9 | P1 cambia de arma con P2 apuntando: P2 vuelve a reposo con la nueva arma | Pendiente |
 | 10 | Escopeta, armas automáticas y armas dobles con P2 | Pendiente |
-
-## Hitos siguientes (orientativo)
-
-| Hito | Dificultad | Notas |
-| --- | --- | --- |
-| P2 dispara | Media | Necesita objetos de arma propios (`obwp[0/1]` son de P1; buscar huecos libres en `obwp[]`) y munición propia. Las animaciones de arma (`mnwP[100+]`) están en el banco compartido: P2 tendría que llevar la misma clase de arma que P1, o tener su propio banco. Para que los disparos de P1 no le den a P2, no ponerle el flag `0x20` de "blanco" de `ene[]`. |
-| Los enemigos atacan a P2 | Media-alta | Hay unas 3.000 referencias a `plp` en 31 archivos de enemigos. Idea por validar: antes de actualizar cada enemigo, apuntar `plp` al jugador más cercano. Riesgos: los agarres duran varios frames y `bhCheckPlayer` solo empuja a `plp`. |
-| Cámara cooperativa | Alta (de diseño) | Planos fijos por zona. Opciones: seguir a P1, al punto medio, o teletransportar a P2 cuando salga de plano. El punto de enganche son `cam.plx/plz` y `bhCheckCut`. |
-| P2 como otro personaje | Media | Para Claire B: segundo cargador del modelo (unos 64 KB, sin animaciones porque son idénticas a las de Claire) y unos 253 KB en el pool de texturas. Para otro personaje (Chris…) haría falta además su propio banco de animaciones (unos 264 KB). Hay que medir el margen de RAM y del pool de texturas, que al llenarse hace `exit(0)`. |
-| Muerte, inventario y guardado de P2 | Media | `ply_hp[4]` e inventario por `ply_id`. La muerte no debe terminar la partida si queda un jugador vivo. |
-| Puertas y cinemáticas con dos jugadores | Media | Las cinemáticas mueven a `plp`; habría que esconder o recolocar a P2. |

@@ -4,6 +4,18 @@
 > **This is a fork: [recvx-decomp-coop](https://github.com/jesusvalle/recvx-decomp-coop).** It's a personal experiment in AI-assisted development: an attempt to add a two-player co-op mode (second player on controller 2) on top of the decompilation, with the code written with the help of AI (Claude). It's a testing project: there's no commitment to keep working on it, and it may never become playable.
 >
 > The decompilation itself is the work of [AshfordFamily/recvx-decomp](https://github.com/AshfordFamily/recvx-decomp), and the rest of this README is theirs. The co-op code is behind `#ifdef COOP` and is documented (in Spanish) in [docs/coop/](docs/coop/README.md).
+>
+> **Co-op roadmap** (details and per-milestone checklists in [docs/coop/README.md](docs/coop/README.md#hoja-de-ruta)):
+>
+> - [x] Milestone 1 — Player 2 appears next to Claire and moves with controller 2
+> - [x] Milestone 2a — Player 2 wears Claire's alternate outfit, with hands and her own ponytail
+> - [x] Milestone 2b — Player 2 aims and shoots (same weapon as player 1, shared ammo, rumble on controller 2)
+> - [ ] Milestone 2c — Player 2's own inventory (Start on controller 2), own ammo and weapon
+> - [ ] Milestone 3 — Enemies attack player 2; player 2 can be hurt and die
+> - [ ] Milestone 4 — Player 2 interacts with the world (examine, pick up items, open doors, push boxes)
+> - [ ] Milestone 5 — Co-op camera and positional sound for player 2
+> - [ ] Milestone 6 — Events and cutscenes with two players
+> - [ ] Milestone 7 — Other characters (Chris), Battle Game, and an in-game co-op toggle
 
 [![Build Status]][actions] [![Code Progress]][progress] [![Data Progress]][progress] 
 
