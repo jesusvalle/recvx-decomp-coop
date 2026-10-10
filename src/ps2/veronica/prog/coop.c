@@ -27,6 +27,7 @@
 #include "../../../ps2/veronica/prog/sub1.h"
 #include "../../../ps2/veronica/prog/item.h"
 #include "../../../ps2/veronica/prog/message.h"
+#include "../../../ps2/veronica/prog/flag.h"
 
 BH_PWORK ply2 __attribute__((aligned(64)));
 
@@ -86,6 +87,23 @@ static int coop_port_bak;
 static int coop_hair_ok;
 static unsigned int coop_gm2;
 static unsigned int* coop_pip_bak;
+static int coop_p2_id;
+static int coop_p2_cos;
+static int coop_p2_ld_id;
+static unsigned char* coop_bmt2;
+static unsigned char* coop_zmt2;
+static int coop_id_bak[3];
+static unsigned char* coop_zmt_bak[3];
+static int coop_cos_bak[3];
+static unsigned int coop_pack1;
+static unsigned int coop_pack2;
+static int coop_reload;
+static int coop_sel;
+static int coop_sel_cos1;
+static unsigned int coop_sel_gm;
+static int coop_sel_ev317;
+static int coop_reload_fail;
+static COOP_PAD coop_sel_pad1;
 
 extern ETTY_WORK lkmtab[2];
 
@@ -115,6 +133,8 @@ static int coop_shadow = -1;
 
 static int coopReadWeapon2Data(unsigned char* datp);
 static int coopP2Dead(void);
+static void coopSwapId(int k);
+static void coopRestoreId(int k);
 
 static void coopSwapPad(COOP_PAD* p)
 {
@@ -200,6 +220,13 @@ void coopSetPad2(void)
         coop_pad2.on = coop_pad2.oncpy = coop_pad2.ps = coop_pad2.rs = coop_pad2.old = 0;
         coop_pad2raw.on = coop_pad2raw.oncpy = coop_pad2raw.ps = coop_pad2raw.rs = coop_pad2raw.old = 0;
 
+        /* Selección de P2: el mando 1 no cuenta. */
+        if (coopSelP2() != 0)
+        {
+            sys->pad_on = 0;
+            sys->pad_ps = 0;
+        }
+
         coopVibStop2();
         return;
     }
@@ -240,6 +267,18 @@ void coopSetPad2(void)
         coopPutPad(&coop_pad2raw);
     }
 
+    /* Selección de mercenarios de P2: el guion de RM_5500 lee su mando, con la máscara de bhSysCallPad. */
+    if (coopSelP2() != 0)
+    {
+        coopPutPad(&coop_pad2raw);
+
+        if (((sys->cb_flg & 0x4)) || (((sys->tk_flg & 0x1000)) && (!(sys->ts_flg & 0x1000))))
+        {
+            sys->pad_on &= 0x1188F;
+            sys->pad_ps &= 0x1188F;
+        }
+    }
+
     /* P2 muriendo: P1 se queda quieto hasta el game over (bhCPM0_die bloquea al jugador que muere; aquí, una puerta resucitaría a P2). */
     if ((coop_mounted != 0) && (coopP2Dead() != 0) && (sys->ts_flg & 0x4000))
     {
@@ -269,6 +308,13 @@ void coopInitMemory(void)
     coop_gm2 = 0;
     coop_wpn_ok[0] = coop_wpn_ok[1] = 0;
     coop_wpn2_tex[0] = coop_wpn2_tex[1] = 0;
+    coop_p2_ld_id = 0;
+    coop_reload = 0;
+    coop_zmt2 = NULL;
+
+    /* Carga completa (partida nueva, reintento, vuelta a la selección de mercenarios): la selección empieza por P1. */
+    coop_sel = 0;
+    coop_reload_fail = 0;
 
     coop_exp0 = bhGetFreeMemory(sizeof(EXP_WORK), 32);
     coop_exp1 = bhGetFreeMemory(124, 32);
@@ -276,8 +322,9 @@ void coopInitMemory(void)
     coop_mnw2 = (MN_WORK*)bhGetFreeMemory(COOP_MNW_N * sizeof(MN_WORK), 32);
     coop_wmt2 = bhGetFreeMemory(COOP_WMT_SIZE, 64);
     coop_wmdl2 = bhGetFreeMemory(COOP_WMDL_SIZE, 64);
+    coop_bmt2 = bhGetFreeMemory(COOP_BMT_SIZE, 64);
 
-    if ((coop_exp0 == NULL) || (coop_exp1 == NULL) || (coop_pool == NULL) || (coop_mnw2 == NULL) || (coop_wmt2 == NULL) || (coop_wmdl2 == NULL) || (sys->lmmdlp == NULL) || (sys->memp > sys->endp))
+    if ((coop_exp0 == NULL) || (coop_exp1 == NULL) || (coop_pool == NULL) || (coop_mnw2 == NULL) || (coop_wmt2 == NULL) || (coop_wmdl2 == NULL) || (coop_bmt2 == NULL) || (sys->lmmdlp == NULL) || (sys->memp > sys->endp))
     {
         coop_pool = NULL;
         coop_mnw2 = NULL;
@@ -286,9 +333,10 @@ void coopInitMemory(void)
         return;
     }
 
-    /* sys->lmmdlp (32 KB) no lo usa el juego: buffers de la coleta de P2 */
+    /* sys->lmmdlp (32 KB) no lo usa el juego: buffers de la coleta de P2 y, detrás, sus datos z */
     coop_hair_exp3 = sys->lmmdlp;
     coop_hair_exp0 = &sys->lmmdlp[COOP_HAIR_EXP3_SIZE];
+    coop_zmt2 = &sys->lmmdlp[COOP_HAIR_EXP3_SIZE + COOP_HAIR_EXP0_SIZE];
 
     npSetMemory((unsigned char*)coop_mnw2, COOP_MNW_N * sizeof(MN_WORK), 0);
 
@@ -383,11 +431,57 @@ static int coopReadPlayer2Data(unsigned char* datp)
 
     datp = &datp[dt0];
 
+    /* Animaciones de cuerpo propias (las de Chris, Steve y Wesker no son las de Claire), como bhReadPlayerData. */
     dt1 = *(unsigned int*)datp;
-    datp = &datp[4 + dt1];
+    datp += 4;
 
+    if (dt1 > COOP_BMT_SIZE)
+    {
+        printf("[COOP] las animaciones de P2 no caben (%d)\n", dt1);
+
+        coop_mdl_n = 0;
+        return 0;
+    }
+
+    njMemCopy(coop_bmt2, datp, dt1);
+
+    npSetMemory((unsigned char*)coop_mnw2, 100 * sizeof(MN_WORK), 0);
+
+    mp = coop_bmt2;
+
+    for (i = 0; (i < 100) && (mp < &coop_bmt2[dt1]) && ((temp = *(unsigned int*)mp) != -1); i++)
+    {
+        if (temp != 0)
+        {
+            bhMnbBinRealize(&mp[4], &coop_mnw2[i]);
+
+            mp = &mp[4 + temp];
+        }
+        else
+        {
+            coop_mnw2[i].md2P = NULL;
+
+            mp += 4;
+        }
+    }
+
+    datp = &datp[dt1];
+
+    /* Datos z (bhGetTransZ): coopBegin los pone en sys->plzmtp. */
     dt1 = *(unsigned int*)datp;
-    datp = &datp[4 + dt1];
+    datp += 4;
+
+    if (dt1 > COOP_ZMT_SIZE)
+    {
+        printf("[COOP] los datos z de P2 no caben (%d)\n", dt1);
+
+        coop_mdl_n = 0;
+        return 0;
+    }
+
+    njMemCopy(coop_zmt2, datp, dt1);
+
+    datp = &datp[dt1];
 
     mp = (unsigned char*)(((int)&coop_pool[dt0] + 256) & ~0xFF);
 
@@ -627,11 +721,30 @@ int coopLoadPlayer2(void)
             return 1;
         }
 
-        coopSeedBlock();
+        if (coop_reload == 0)
+        {
+            coopSeedBlock();
+
+            /* Mercenarios: P2 se carga cuando ha elegido (G22), no en la selección. */
+            if (sys->gm_mode == 3)
+            {
+                coop_ld_mode = 3;
+                return 1;
+            }
+
+            /* Historia: Claire con el traje que no lleva P1. */
+            coop_p2_id = 0;
+            coop_p2_cos = (sys->costume == 0) ? 1 : 0;
 
 #ifdef COOP_TEST
-        coopTestGiveHandgun();
+            coopTestGiveHandgun();
+
+#ifdef COOP_TEST_P2_ID
+            coop_p2_id = COOP_TEST_P2_ID;
+            coop_p2_cos = 0;
 #endif
+#endif
+        }
 
         coop_wpn2_req = coopItemToWpn(coopEquipped2());
 
@@ -640,7 +753,13 @@ int coopLoadPlayer2(void)
             return 0;
         }
 
-        coop_ld_file = (sys->costume == 0) ? 14 : 10;
+        if (coop_p2_id != 0)
+        {
+            coop_p2_cos = 0;
+        }
+
+        coop_ld_file = coop_p2_id + 10 + (coop_p2_cos * 4);
+        coop_p2_ld_id = coop_p2_id;
 
         size = GetInsideFileSize(sys->sys_partid, coop_ld_file);
 
@@ -700,7 +819,7 @@ int coopLoadPlayer2(void)
             return 0;
         }
 
-        coop_ld_file = coop_wpn2_req + 20;
+        coop_ld_file = coop_wpn2_req + (coop_p2_ld_id * 30) + 20;
 
         size = GetInsideFileSize(sys->sys_partid, coop_ld_file);
 
@@ -744,6 +863,10 @@ int coopLoadPlayer2(void)
 
         coopSeLoad(WpnTab[coop_wpn2_no].snd_wpno);
 
+        /* Voz de P2 (coopsnd.c): coopSeStep la carga tras el arma. */
+        /* En la historia P2 es Claire y solo se ve con Claire de P1: no hace falta su voz (ni el hueco bajo de la SPU2). */
+        coopVoiceLoad(((sys->gm_mode == 3) || (coop_p2_ld_id != 0)) ? coop_p2_ld_id : -1);
+
         coop_ld_mode = 6;
         return 0;
     case 6:
@@ -754,6 +877,48 @@ int coopLoadPlayer2(void)
 
         coop_ld_mode = 3;
         return 1;
+    }
+
+    return 1;
+}
+
+/* G22: modo 4 del cargador (cambio de sala), principio del paso 10. En mercenarios, P2 se carga en la primera sala tras elegir.
+ * bhFinishRoom ya llamó a coopRoomStart sin P2: se vuelve a llamar al terminar. Devuelve 0 mientras está ocupado. */
+int coopReloadPlayer2(void)
+{
+    if (coop_reload == 0)
+    {
+        if ((coop_enabled == 0) || (coop_loaded != 0) || (coopDemo() != 0) || (sys->gm_mode != 3) || (coop_sel != 2) || (coop_reload_fail != 0))
+        {
+            return 1;
+        }
+
+        if ((sys->stg_no == 5) && (sys->rom_no == 50))
+        {
+            return 1;
+        }
+
+        coop_reload = 1;
+        coop_ld_mode = 0;
+
+        printf("[COOP] carga de P2 tras la selección: personaje %d, traje %d\n", coop_p2_id, coop_p2_cos);
+    }
+
+    if (coopLoadPlayer2() == 0)
+    {
+        return 0;
+    }
+
+    coop_reload = 0;
+
+    if (coop_loaded != 0)
+    {
+        coopRoomStart();
+    }
+    else
+    {
+        /* No se reintenta en cada sala: P1 sigue solo hasta la próxima carga completa. */
+        coop_reload_fail = 1;
     }
 
     return 1;
@@ -781,7 +946,7 @@ int coopMonitorWeapon2(void)
 
         coop_wpn2_req = coopItemToWpn(coopEquipped2());
 
-        file = coop_wpn2_req + 20;
+        file = coop_wpn2_req + (coop_p2_ld_id * 30) + 20;
 
         size = GetInsideFileSize(sys->sys_partid, file);
 
@@ -928,6 +1093,8 @@ void coopPostSubTask(void)
         coop_inv_owner = 2;
         coop_p2_req = 0;
 
+        coop_pack2 = sys->gm_flg & 0x8000000;
+
         /* bhSetPad calcula las pulsaciones con el historial de sys->pad_*: al cerrar se repone el de P1. */
         coopGetPad(&coop_pad1);
         coop_pad1.ps = 0;
@@ -977,6 +1144,12 @@ void coopItemselectBegin(void)
     coop_mn_pre = *(int*)&sys->mn_mode0;
     coop_gm_crit = sys->gm_flg & 0x10000000;
 
+    /* Mochila (gm_flg 0x8000000): StatusMain la calcula con el personaje de la pantalla (bhCheckSubPack); cada jugador tiene la suya. */
+    coop_pack1 = sys->gm_flg & 0x8000000;
+    sys->gm_flg = (sys->gm_flg & ~0x8000000) | coop_pack2;
+
+    coopSwapId(2);
+
     plp = &ply2;
 }
 
@@ -988,6 +1161,11 @@ void coopItemselectEnd(void)
     }
 
     plp = &ply;
+
+    coopRestoreId(2);
+
+    coop_pack2 = sys->gm_flg & 0x8000000;
+    sys->gm_flg = (sys->gm_flg & ~0x8000000) | coop_pack1;
 
     /* WeaponSet escribe el crítico en gm_flg: el de P2 se calcula al cargar su arma (2c). */
     sys->gm_flg = (sys->gm_flg & ~0x10000000) | coop_gm_crit;
@@ -1143,6 +1321,30 @@ static void coopSwapWeaponObj(void)
     b->mlwP = w;
 }
 
+/* El código del jugador, de los enemigos y de la pantalla de estado lee el personaje de sys->ply_id/costume y los datos z de sys->plzmtp:
+ * en cada ventana de P2 (k: 0 su update, 1 un enemigo que va a por él, 2 su pantalla) son los de P2. */
+static void coopSwapId(int k)
+{
+    coop_id_bak[k] = sys->ply_id;
+    coop_cos_bak[k] = sys->costume;
+    coop_zmt_bak[k] = sys->plzmtp;
+
+    sys->ply_id = coop_p2_ld_id;
+    sys->costume = coop_p2_cos;
+
+    if (coop_zmt2 != NULL)
+    {
+        sys->plzmtp = coop_zmt2;
+    }
+}
+
+static void coopRestoreId(int k)
+{
+    sys->ply_id = coop_id_bak[k];
+    sys->costume = coop_cos_bak[k];
+    sys->plzmtp = coop_zmt_bak[k];
+}
+
 static void coopBegin(void)
 {
     int i;
@@ -1183,6 +1385,8 @@ static void coopBegin(void)
 
     coopSwapPad(&coop_pad2);
 
+    coopSwapId(0);
+
     plp = &ply2;
 }
 
@@ -1191,6 +1395,8 @@ static void coopEnd(void)
     int i;
 
     plp = &ply;
+
+    coopRestoreId(0);
 
     coopSwapPad(&coop_pad2);
 
@@ -1227,9 +1433,30 @@ static void coopEnd(void)
     coopFlashToP2();
 }
 
+/* D7: en la historia, P2 solo con Claire de P1 (sus guiones de Chris no cuentan con P2). En mercenarios, siempre, salvo en la selección (5-50). */
+static int coopP2Allowed(void)
+{
+    if (sys->gm_mode == 3)
+    {
+        if ((sys->stg_no == 5) && (sys->rom_no == 50))
+        {
+            return 0;
+        }
+
+        return 1;
+    }
+
+    if (sys->ply_id != 0)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 static int coopHideCondition(void)
 {
-    if ((ply.stflg & 0x1000000) || (sys->cb_flg & 0x5) || (ply.mode0 == 7) || (sys->ply_id != 0))
+    if ((ply.stflg & 0x1000000) || (sys->cb_flg & 0x5) || (ply.mode0 == 7) || (coopP2Allowed() == 0))
     {
         return 1;
     }
@@ -1448,6 +1675,8 @@ void coopEnemyBegin(BH_PWORK* ep)
 
         coopSwapPad(&coop_pad2);
 
+        coopSwapId(1);
+
         plp = &ply2;
     }
 }
@@ -1461,6 +1690,8 @@ void coopEnemyEnd(BH_PWORK* ep)
     }
 
     plp = &ply;
+
+    coopRestoreId(1);
 
     coopSwapPad(&coop_pad2);
 
@@ -1778,17 +2009,6 @@ static void coopApplyWeapon(void)
     ply2.mlwP->owP[13].flg &= ~0x2;
 }
 
-/* G4: al final de bhReadPlayerData. El cuerpo de P2 usa las animaciones de P1 (0-99); las del arma (100+) son suyas. */
-void coopSyncBodyMotions(void)
-{
-    if ((coop_enabled == 0) || (coop_mnw2 == NULL))
-    {
-        return;
-    }
-
-    npCopyMemory((unsigned char*)coop_mnw2, (unsigned char*)sys->plmthp, 100 * sizeof(MN_WORK));
-}
-
 /* Copia reducida de bhReadWeaponData (dread.c) que no toca plp, sys->obwp, wrmdlp, wlmdlp ni plwmtp. */
 static int coopReadWeapon2Data(unsigned char* datp)
 {
@@ -2035,18 +2255,30 @@ static int coopReadWeapon2Data(unsigned char* datp)
     return ok;
 }
 
-/* Coleta de P2: como bhSetObject(lkmtab, 2, ...) y bhSetPlayer (player.c, case 0), pero en un O_WRK propio. */
-static void coopSetHair(void)
+/* Objeto enganchado de P2: como bhSetObject(lkmtab, 2, ...) y bhSetPlayer (player.c), pero en un O_WRK propio.
+ * coop_hair_ok: 0 ninguno (Chris, Steve), 1 coleta (Claire, simulada con bhObjClpn), 2 gafas (Wesker, rígidas). */
+static void coopSetLinkObj(void)
 {
     O_WRK* op;
     ETTY_WORK* otp;
 
     op = &coop_hair;
-    otp = &lkmtab[0];
 
     coop_hair_ok = 0;
 
     npSetMemory((unsigned char*)op, sizeof(O_WRK), 0);
+
+    switch (coop_p2_ld_id)
+    {
+    case 0:
+        otp = &lkmtab[0];
+        break;
+    case 3:
+        otp = &lkmtab[1];
+        break;
+    default:
+        return;
+    }
 
     if ((coop_mdl_n <= otp->mdlver) || (coop_mdl[otp->mdlver].objP == NULL))
     {
@@ -2078,6 +2310,21 @@ static void coopSetHair(void)
     op->clp_jno[1] = -1;
 
     op->lkono = 5;
+
+    if (coop_p2_ld_id == 3)
+    {
+        op->lox = 0;
+        op->loy = 0.85f;
+        op->loz = -1.03f;
+
+        op->mdl[0] = coop_mdl[op->mdlver];
+        op->mlwP = &op->mdl[0];
+
+        op->mode0 = 0;
+
+        coop_hair_ok = 2;
+        return;
+    }
 
     op->lox = 0;
     op->loy = 1.5869f;
@@ -2154,10 +2401,10 @@ void coopRoomStart(void)
     ply2.mdflg = 0x20;
     ply2.stflg = 0x40000000 | 0x1000000;
 
-    ply2.ar = PlyInfo[0][0];
-    ply2.ah = PlyInfo[0][1];
-    ply2.car = PlyInfo[0][0] - 1.0f;
-    ply2.cah = PlyInfo[0][1] - 1.0f;
+    ply2.ar = PlyInfo[coop_p2_ld_id][0];
+    ply2.ah = PlyInfo[coop_p2_ld_id][1];
+    ply2.car = PlyInfo[coop_p2_ld_id][0] - 1.0f;
+    ply2.cah = PlyInfo[coop_p2_ld_id][1] - 1.0f;
 
     ply2.sx = ply2.sxb = 1.0f;
     ply2.sy = ply2.syb = 1.0f;
@@ -2202,7 +2449,7 @@ void coopRoomStart(void)
         }
     }
 
-    coopSetHair();
+    coopSetLinkObj();
 
     PlyPchInit(&ply2);
 
@@ -2271,8 +2518,8 @@ static void coopSeparate(void)
     bhCalcModel(&ply2);
 }
 
-/* Lo que hace bhControlObjItm (objitm.c) con un objeto enganchado, sobre los objetos de P2. */
-static void coopControlObject(O_WRK* op, int hair)
+/* Lo que hace bhControlObjItm (objitm.c) con un objeto enganchado, sobre los objetos de P2. kind: 0 arma, 1 coleta, 2 gafas (bhObjWssg está vacía). */
+static void coopControlObject(O_WRK* op, int kind)
 {
     BH_PWORK* pp;
 
@@ -2305,11 +2552,11 @@ static void coopControlObject(O_WRK* op, int hair)
         bhActionWeapon((BH_PWORK*)op);
     }
 
-    if (hair != 0)
+    if (kind == 1)
     {
         bhObjClpn(op);
     }
-    else
+    else if (kind == 0)
     {
         bhObjWpn((BH_PWORK*)op);
     }
@@ -2600,7 +2847,7 @@ void coopControlPlayer2(void)
     {
         if (coop_hair_ok != 0)
         {
-            coopControlObject(&coop_hair, 1);
+            coopControlObject(&coop_hair, coop_hair_ok);
         }
 
         if (coop_wpn_ok[0] != 0)
@@ -2648,6 +2895,170 @@ void coopDrawPlayer2(void)
     coopDrawObject(&coop_hair, coop_hair_ok);
     coopDrawObject(&coop_wpn[0], coop_wpn_ok[0]);
     coopDrawObject(&coop_wpn[1], coop_wpn_ok[1]);
+}
+
+/* Mercenarios (hito 7b). La selección de RM_5500 es un guion: al confirmar, bhSv(25) pone el traje, 0x89 el personaje, 0xCF el inventario
+ * y bhSetDoorCall va a 5-52. La primera vez (P1) la puerta se redirige a la misma 5-50 y el guion se repite para P2 con su mando. */
+
+/* Fase de selección de P2: RM_5500 repetida. */
+int coopSelP2(void)
+{
+    if ((coop_enabled == 0) || (coop_sel != 1) || (sys->gm_mode != 3) || (sys->stg_no != 5) || (sys->rom_no != 50))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* G24 (bhStartDoorDemo, case 0, antes de aplicar el destino). */
+void coopBattleDoor(DOOR_WORK* ddp)
+{
+    if ((coop_enabled == 0) || (coopDemo() != 0) || (sys->gm_mode != 3) || (sys->stg_no != 5) || (sys->rom_no != 50) || (ddp->stg_no != 5) || (ddp->rom_no != 52))
+    {
+        return;
+    }
+
+    if (coop_sel == 0)
+    {
+        /* Sin mando 2 no hay quien elija: se juega solo, sin P2. */
+        if (coopPad2Connected() == 0)
+        {
+            printf("[COOP] mercenarios sin mando 2: P1 solo\n");
+            return;
+        }
+
+        /* La vista subjetiva (página 2) y el traje son de P1: P2 no los cambia. */
+        coop_sel_cos1 = sys->costume;
+        coop_sel_gm = sys->gm_flg & 0x10028C0;
+        coop_sel_ev317 = bhCkFlg(sys->ev_flg, 317);
+
+        coop_p2_id = 0;
+        coop_p2_cos = 0;
+
+        /* El historial del mando de P1: en la fase P2, sys->pad_* es el del mando 2. */
+        coopGetPad(&coop_sel_pad1);
+
+        coop_sel = 1;
+
+        /* Se vuelve a entrar en 5-50 por donde se entró (la posición de 5-52 no vale aquí). */
+        ddp->rom_no = 50;
+        ddp->pos_no = sys->pos_no;
+
+        printf("[COOP] P1 ha elegido (%d, traje %d): selección de P2\n", sys->cng_pid, sys->costume);
+    }
+    else if (coop_sel == 1)
+    {
+        sys->costume = coop_sel_cos1;
+        sys->gm_flg = (sys->gm_flg & ~0x10028C0) | coop_sel_gm;
+
+        if (coop_sel_ev317 != 0)
+        {
+            bhStFlg(sys->ev_flg, 317);
+        }
+        else
+        {
+            bhCrFlg(sys->ev_flg, 317);
+        }
+
+        coop_sel_pad1.on = 0;
+        coop_sel_pad1.ps = 0;
+        coop_sel_pad1.rs = 0;
+
+        coopPutPad(&coop_sel_pad1);
+
+        coop_sel = 2;
+
+        printf("[COOP] P2 ha elegido (%d, traje %d)\n", coop_p2_id, coop_p2_cos);
+    }
+}
+
+/* G25 (bhSv, caso 25). Devuelve 1 si el traje es de P2. */
+int coopBattleCostume(int v)
+{
+    if (coopSelP2() == 0)
+    {
+        return 0;
+    }
+
+    coop_p2_cos = (v != 0) ? 1 : 0;
+
+    return 1;
+}
+
+/* G26 (bhPlayerChangeSet, 0x89). Devuelve 1 si el personaje es de P2 (sin cng_pid ni cb_flg 0x80). */
+int coopBattleChange(int v)
+{
+    if (coopSelP2() == 0)
+    {
+        return 0;
+    }
+
+    coop_p2_id = ((v >= 0) && (v <= 3)) ? v : 0;
+
+    /* Solo Claire tiene segundo traje. */
+    if (coop_p2_id != 0)
+    {
+        coop_p2_cos = 0;
+    }
+
+    return 1;
+}
+
+/* G27 (bhExGameItemInit, 0xCF). Como ExtraGameItemInit (sub1.c), en el bloque de P2. Devuelve 1 si era la selección de P2. */
+int coopBattleItemInit(void)
+{
+    int itemset[5][16] =
+    {
+        { 8, 8, 9,    10247, 2060, 29,   29,   29, 29, 0, 0, 0, 0, 0, 0, 0 },
+        { 6, 8, 4,    2080,  2062, 29,   29,    0,  0, 0, 0, 0, 0, 0, 0, 0 },
+        { 5, 8, 2081, 2082,  29,   29,    0,    0,  0, 0, 0, 0, 0, 0, 0, 0 },
+        { 4, 8, 29,   29,    29,    0,    0,    0,  0, 0, 0, 0, 0, 0, 0, 0 },
+        { 7, 8, 6,    2050,  29, 2063, 2064, 2065,  0, 0, 0, 0, 0, 0, 0, 0 }
+    };
+    unsigned int* pip;
+    int row;
+    int itemid;
+    int i;
+    int j;
+
+    if (coopSelP2() == 0)
+    {
+        return 0;
+    }
+
+    pip = &sys->itm[COOP_ITM];
+
+    for (i = 0; i < 16; i++)
+    {
+        pip[i] = 0;
+    }
+
+    pip[16] = COOP_MAGIC;
+    pip[17] = (sys->gm_mode == 2) ? 320 : 160;
+    pip[18] = 0;
+
+    row = (coop_p2_cos != 0) ? 4 : coop_p2_id;
+
+    i = 0;
+
+    if ((sys->ssd_flg & 0x80000000))
+    {
+        pip[2] = 0x80B0001;
+
+        i = 1;
+    }
+
+    for (j = 0; j < itemset[row][0]; i++, j++)
+    {
+        itemid = itemset[row][j + 1];
+
+        pip[i + 2] = (itemid << 16) | getbulletmax[(unsigned char)itemid][sys->gm_mode];
+    }
+
+    printf("[COOP] inventario de mercenarios de P2: fila %d, %d objetos\n", row, i);
+
+    return 1;
 }
 
 #endif

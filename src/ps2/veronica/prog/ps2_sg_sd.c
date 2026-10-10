@@ -4,6 +4,9 @@
 #include "../../../ps2/veronica/prog/ps2_snddrv.h"
 #include "../../../ps2/veronica/prog/sdfunc.h"
 #include "../../../ps2/veronica/prog/main.h"
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
 
 //#include <string.h>
 
@@ -141,6 +144,9 @@ SDE_ERR	sdBankDownload( SDMEMBLK handle, const SDE_DATA_TYPE bank_type, const Si
                 ee_trans_bd_address = (int)snd_data + ((unsigned int*)snd_data)[2];
                 
                 iop_trans_offset = 0;
+#ifdef COOP
+                iop_trans_offset = coopSeBdOffset();
+#endif
                 
                 ee_trans_hd_size = ((unsigned int*)snd_data)[1];
                 ee_trans_bd_size = ((unsigned int*)snd_data)[3];

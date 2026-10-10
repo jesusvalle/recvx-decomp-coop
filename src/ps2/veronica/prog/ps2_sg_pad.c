@@ -845,4 +845,10 @@ const PDS_PERIPHERAL* coopGetPeripheral2(void)
 
     return &pp;
 }
+
+/* Mando 2 conectado (según la última lectura del puerto 2). */
+int coopPad2Connected(void)
+{
+    return Coop_pad2_conn;
+}
 #endif

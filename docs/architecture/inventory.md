@@ -180,7 +180,22 @@ Como está dentro de `version..save_end`, el bloque viaja con la partida guardad
 
 ## Battle Game
 
-`gm_mode >= 3`: stage 5, sala 50, `ply_id = 3` (system.c:505-513). El opcode `bhExGameItemInit` (0xCF) llama a `ExtraGameItemInit` (sub1.c:8553-8600), que rellena `itm[cng_pid*16]` con una de 5 filas: `cng_pid` 0-3, más la fila 4 si `costume`.
+`gm_mode >= 3`: stage 5, sala 50, `ply_id = 3` (system.c:505-513). Se entra desde el menú extra del título (`CheckButton`, adv.c, comando 3: `gm_mode = 3`).
+
+- **La selección de personaje no está en C:** es el guion de `RM_5500.RDX`. El cursor se guarda en `sys->rm_flg` (bits de índice 5-7). El orden es Claire, Claire B, Chris, Steve, Wesker. Los personajes bloqueados se saltan con `bhCk` sobre `sys->ssd_flg`: 0x04 Claire, 0x20 Claire B, 0x08 Chris, 0x10 Steve, 0x40 Wesker. La página 2 elige la vista subjetiva (`bhSyukanModeSet`, `ev_flg` 317). Al confirmar sale con `bhSetDoorCall` a la etapa 5, sala 52 (`RM_5520`), en el mismo frame que 0x89/0xCF. `scd0` aparta al jugador a (−50, −50, −50) con `mode0 = 7` y pone `cb_flg 0x4`.
+- **Al confirmar**, el guion ejecuta:
+  1. `bhSv` caso 25 (`sys->costume`, event.c:848), solo para Claire y Claire B;
+  2. el opcode 0x89 `bhPlayerChangeSet` (event.c:6264): `cng_pid = v0; cb_flg |= 0x80`. El cambio lo aplica el cargador en el modo 4, pasos 3-7 (system.c:1766-1849);
+  3. el opcode 0xCF `bhExGameItemInit` (event.c:8906).
+- **`cng_pid` y `costume` están fuera del rango guardado:** `bhPopGameData` no los restaura, pero `bhExitGame` → `bhInitSystem` los pone a 0, así que valen 0 en cada entrada a `RM_5500`.
+- **Inventario:** `bhExGameItemInit` llama a `ExtraGameItemInit` (sub1.c:8567).
+  - La tabla `int itemset[5][16]` es local. Su fila es `costume ? 4 : cng_pid` y el elemento [0] es el número de objetos.
+  - Escribe `itm[cng_pid*16 + 2..]` con `(id << 16) | getbulletmax[id][gm_mode]`. No borra el bloque ni toca la casilla equipada (se empieza sin arma).
+  - Con `ssd_flg & 0x80000000`, pone primero el Linear Launcher (`0x080B0001`).
+- **Morir** vuelve a la selección: `bhExitGameOver` hace `bhPopGameData` con la instantánea de la carga completa en `RM_5500`.
+- **Pantalla de estado:** el retrato sale de `sys->ply_id` (`StatusInit`, sub1.c:1535), así que Claire B tiene el de Claire. El mapa está bloqueado (sub1.c:4267, system.c:631).
+
+Diseño del modo a dos jugadores: [hito 7](../superpowers/specs/2026-10-10-coop-hito7-design.md).
 
 ## Opcodes de script de inventario
 

@@ -4,7 +4,7 @@ Rutas relativas a `src/ps2/veronica/prog/`. Cada sección indica si el sistema r
 
 ## Cámara
 
-Hay una sola cámara global, `CAM_WORK cam` (types.h:1062, main.c:39). No hay pantalla partida.
+Hay una sola cámara global, `CAM_WORK cam` (types.h:1062, main.c:39). No hay pantalla partida, pero el motor sabe dibujar la escena una segunda vez desde otro plano (ver [Dibujo](#dibujo)).
 
 ### Planos fijos
 
@@ -65,6 +65,11 @@ Las escaleras (`kaidan`) y escalones (`dansa`) leen el global `sys->pl_htp` (pla
 
 - `bhPutModel(pw)` (MdlPut.c:17), con la pasada de espejo incluida, y `bhCalcModel(pw)` (MdlPut.c:240) **reciben parámetro**.
 - La llamada para el jugador está fija en `bhAllDrawModel` (game.c:357-370).
+- **Ritmo:** `Ps2SwapDBuff` (ps2_NaSystem.c:67) espera al menos 2 vsync, así que el juego va a 30 fps fijos. La lógica avanza un paso por frame dibujado (`loop_ct` es siempre 1): si el dibujo tarda más de 2 vsync, el juego se ralentiza, no salta frames.
+- **Lista de dibujo diferida:** `bhAllDrawModel` llena una OT que se envía en `Ps2DrawOTag` (y se vacía con `Ps2ClearOT`). Para cambiar algo que el GS aplica al momento (el recorte) entre dos partes de la escena, hay que enviar la OT antes.
+- **Recorte y pantalla:** `njUserClipping(2, p)` (ps2_NaSystem.c:439) pone el scissor del GS en el rectángulo `p[0]..p[1]` y `njUserClipping(0, …)` lo restaura a pantalla completa. `njSetScreen` (ps2_NaView.c:27) fija la distancia de proyección, el tamaño y el centro (`cx/cy`) del área de dibujo. El inventario dibuja así el modelo 3D del objeto (sub1.c:3540-3580): `Ps2DrawOTag` → recorte → dibujo → `Ps2DrawOTag` → recorte completo.
+- **Segunda pasada de la escena:** `bhDrawSmallScreenRenderTexture` (screen.c:920) dibuja la sala otra vez desde otro plano para los monitores (`gm_flg 0x200`): copia `cam`, `bhSetRenderCut` + `bhControlCamera`, `njSetScreen`, `bhAllEasyDrawModel` (sin jugador) y `Ps2DrawOTag`; después restaura `cam`, la proyección (`njSetScreenProjection`, `Ps2CalcScreenCone`), las mallas ocultas del plano (`bhSetHideObjLgt`) y las luces (`bhSetLight`). `bhDrawFullScreenRenderTexture` (screen.c:816) dibuja la escena entera a una textura de 512x480.
+- **Lo que depende del plano al dibujar:** mallas ocultas de la sala (`evalflags 0x8`, globales en `rom->mdl.objP`), luces (`bhControlLight` lee `cam.ncut`), niebla (`cam.fog_*`), objetos ocultos por plano (`op->hide[]`, objitm.c:562, 659, 688) y el recorte de vista por sala y plano (`ViewClipTbl`, event.c:13534).
 
 ### Texturas
 
@@ -126,6 +131,11 @@ Investigado en octubre de 2026 para los sonidos de arma de P2. Lo del IOP sale d
   - se pide un banco con `SpqKeyCode` (clave de `MULTSPQ?.IDX`: `0x4000|n` armas, `0x8000|n` puertas, `0xFFF0|n` voz, `etapa*1000 + sala*10 + caso` salas) y `SpqFileReadRequestFlag` (1 sala, 2 armas, 3 puerta, 4 voz). Quien pide espera antes a que valga 0 (`CheckTransEndSoundBank`);
   - mientras vale 2, `CallPlayerWeaponSeEx` no suena;
   - `TransSoundPackDataFlag` (`ExecTransSoundData`) no lo activa nadie.
+- **Voz del jugador:** `CallPlayerVoice(SeNo)` (sdfunc.c) suena en el slot 7 con `PlayerPos` (la posición de `plp` copiada una vez por frame en `ExecSoundSystemMonitor`). El banco 4 (`CORE_xxx`, en `MULTSPQ1.AFS`, claves 0xFFF0-0xFFF3) tiene solo 4 programas con una muestra cada uno: 0x400 daño por detrás, 0x401 muerte, 0x402 daño leve y 0x403 daño fuerte. Los piden player.c (`bhCPM0_damage`, `bhCPM0_die`) y los enemigos que agarran o golpean al jugador (`bhEne_CallPlayerVoice`, que suma 0x400, y `bhEne_PlayerSePlay`). `CallPlayerVoice(519)` (en15.c) es del banco 2. BD de cada `CORE`: 53.760, 38.272, 44.672 y 50.432 B.
+- **Cómo calcula `modhsyn` la dirección de una muestra** (`MODHSYN.IRX` del disco, sin símbolos; 0x3AD4 y 0x4F60): `sceSdSetAddr(voz | 0x2040, base + Vagi.desplazamiento)`, con una suma de 32 bits. Solo comprueba los índices y que el desplazamiento no sea 0xFFFFFFFF; no lo compara con el tamaño del BD. `sceSdSetAddr` (`LIBSD`, export 9) escribe `addr >> 17` en la parte alta sin máscara. Un desplazamiento "negativo" (0xFFE2B4A0 sobre 0x1D9C00) da exactamente 0x050A0.
+- **Duraciones en `TSNDDRV`** (orden 0x29): `Vagi[i + 1] - Vagi[i]` por orden de índice, y la última con el tamaño del BD de `Head`. Un salto de direcciones entre dos entradas seguidas estropea la duración de la anterior. Las tablas de la pila admiten 128 muestras y 128 programas por puerto.
+- **Subida de un BD** (`SdrBDDataTrans`): `Tsnd_spuadr_tbl[puerto & 0x7F] + desplazamiento` (24 bits), con el desplazamiento inicial `iop_trans_offset = 0` (ps2_sg_sd.c, `sdBankDownload`). `sceSdVoiceTrans` pone el TSA con el mismo `addr >> 17` sin máscara. Ninguna entrada de la tabla apunta por debajo de 0xD800, así que para escribir en 0x050A0 hay que dar la vuelta a los 2 MB: PCSX2 enmascara el TSA con 0xFFFFF (`DoDMAwrite`) y el SSA con 4 bits; el hardware real no está comprobado.
+- **Voz de P2 (coop, coopsnd.c):** su `CORE` se pide con `SpqFileReadRequestFlag = 6`. G20 copia sus entradas y reescribe sus Vagi como 0xFFE2B4A0 + desplazamiento; G28 (ps2_sg_sd.c) hace que su BD se suba al puerto 7 con desplazamiento inicial 0x2B4A0 (0x2050A0, que la SPU2 lleva a 0x050A0, el hueco bajo). El HD del banco 4 queda así: voz de P1 (listas 0-3), voz de P2 (listas 4-7), armas de P2 (32 + lista); por índices, voz de P1, armas de P2, una entrada falsa que marca el final de lo anterior y voz de P2, y `Head` lleva 0xFFE2B4A0 + el tamaño de la voz de P2. G23 (`CallPlayerVoice`) lleva a 4 + lista las voces pedidas con `plp == &ply2` si el personaje de P2 no es el del último `CORE` de P1.
 - **Medir:** en un savestate de PCSX2, `SPU2.bin` lleva la RAM de sonido a partir del byte 0x10004 y `iopMemory.bin` la RAM del IOP. La base de `TSNDDRV` se encuentra buscando "TSND Ver 1.6" (dirección del módulo 0x18B59). En la parte de `SPU2.bin` anterior a 0x10004 están las direcciones de inicio de las voces en medias palabras.
 
 ## Interfaz y salud

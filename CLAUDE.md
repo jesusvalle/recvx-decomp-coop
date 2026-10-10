@@ -88,16 +88,17 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
   - el bloque `#ifdef COOP` al final de `ps2_sg_pad.c` (lectura del puerto 2);
   - el bloque `#ifdef COOP` al final de `ps2_sg_pdvib.c` (vibración del mando 2);
   - `src/ps2/veronica/prog/coopsnd.c`: sonidos del arma de P2 (su banco reducido en el banco de SE 4 y un hueco libre de la SPU2);
-  - ganchos pequeños (G1-G9 y G11-G21), listados en [docs/coop/README.md](docs/coop/README.md).
+  - ganchos pequeños (G1-G3, G5-G9 y G11-G28; G10 no existe y G4 se quitó en el hito 7), listados en [docs/coop/README.md](docs/coop/README.md).
 - **Cómo funciona:** P2 es `BH_PWORK ply2`. Se actualiza con el `bhControlPlayer()` original dentro de `coopBegin()`/`coopEnd()`, que intercambian el mando, ponen `plp = &ply2`, y guardan y restauran `st_flg`, `cb_flg`, `gm_flg`, `pt_flg`, `flr_idx`, `etc_idx`, `pl_htp`, `door` y `cam`.
 - **Regla:** cualquier llamada nueva que use `plp` por dentro (por ejemplo `bhCheckWallEx`) sobre P2 va dentro de ese contexto.
 - **Activar o desactivar:** `"COOP"` en `defines` de `compile_config.json`. Al cambiarlo, borra `build/src/`.
 - **P2 desde el hito 2a:** lleva su propio modelo (Claire B, cargado en el paso 10 del modo 1 por G8) y su coleta, en objetos propios de `coop.c`.
 - **Combate de P2 (hito 2b):** `coopBegin`/`coopEnd` protegen también el objeto de arma, los impactos del frame, el fogonazo y el puerto de vibración (ver [combat.md](docs/architecture/combat.md)).
-- **Arma propia de P2 (hito 2c):** su inventario es `sys->itm[256..271]` (metadatos en `272..279`, dentro de la partida guardada). Su arma la carga `coopReadWeapon2Data` (G8 y, para el inventario de P2, el modo 3 con `mn_md3 = COOP_MN_P2`, G11) en buffers propios; la tabla de animaciones del cuerpo se copia de P1 en G4 (final de `bhReadPlayerData`). Dentro de `coopBegin`/`coopEnd`, `swork.pip` y los bits `gm_flg 0x40000`/`0x10000000` son los de P2.
+- **Arma propia de P2 (hito 2c):** su inventario es `sys->itm[256..271]` (metadatos en `272..279`, dentro de la partida guardada). Su arma la carga `coopReadWeapon2Data` (G8 y, para el inventario de P2, el modo 3 con `mn_md3 = COOP_MN_P2`, G11) en buffers propios; desde el hito 7, también sus animaciones de cuerpo y sus datos z. Dentro de `coopBegin`/`coopEnd`, `swork.pip` y los bits `gm_flg 0x40000`/`0x10000000` son los de P2.
 - **Inventario de P2 (hito 2d):** la pantalla original con un dueño (`coop_inv_owner`): G13 abre la de P2 con su Start o su petición, G14 pone su bloque, G15 pone `plp = &ply2` solo alrededor de `ItemTaskCheck`/`StatusMain` y es el único punto de cierre, G16 bloquea los objetos clave. La acción de P2 es un sondeo propio de zonas de objeto y baúl (`coopActionP2`), no `bhCheckExmAtari`.
 - **Salud y enemigos (hito 3):** la vida de P2 está en `itm[273]` (veneno en `274`). G17 (eneset.c) cambia `plp`, el mando y el puerto de vibración a P2 durante el update de los enemigos que le eligen (`coop_tgt[]`); G18 hace lo mismo para los efectos dañinos; G19 repite sobre P2 el daño de las explosiones. A P2 muerto no se le reanima.
-- **`COOP_TEST`:** define solo para pruebas (nunca en el build normal): pone una pistola con 15 balas, equipada, en el bloque de P2 al cargar. Se activa con `#define COOP_TEST` tras el `#ifdef COOP` de coop.c.
+- **Personaje de P2 y mercenarios (hito 7):** P2 puede ser cualquier personaje (`coop_p2_id`/`coop_p2_cos`; en la historia, siempre Claire con el otro traje). Dentro de sus contextos (`coopBegin`/`coopEnd`, G15, G17), `sys->ply_id`, `sys->costume` y `sys->plzmtp` son los de P2 (`coopSwapId`). En mercenarios, la selección (`RM_5500`, un guion) se repite para P2 redirigiendo su puerta (G24) y desviando traje, personaje e inventario (G25-G27); P2 se carga en la primera sala (G22).
+- **`COOP_TEST`:** define solo para pruebas (nunca en el build normal): pone una pistola con 15 balas, equipada, en el bloque de P2 al cargar. Se activa con `#define COOP_TEST` tras el `#ifdef COOP` de coop.c. Con `#define COOP_TEST_P2_ID n` además, en la historia P2 es el personaje `n` (1 Chris, 2 Steve, 3 Wesker).
 - **Specs y planes:** `docs/superpowers/specs/` y `docs/superpowers/plans/`.
 - **Cómo probar** (herramientas, navegación en PCSX2, partida de prueba, identidad sin `COOP`): [docs/coop/testing.md](docs/coop/testing.md).
 
@@ -118,10 +119,11 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
 - Varias funciones reciben un `BH_PWORK*` pero leen `plp` igualmente: `bhCheckFloorP`, el daño de `bhCheckWall*` y `bhCheckExmAtari`.
 - Los ids de entidad 31-38 de `bhJumpEnemy[]` los sustituyen algunos enemigos al inicializarse.
 - Los números de línea de `docs/` pueden desplazarse con los cambios: busca por el nombre de la función.
-- **MWCC no es determinista con `ps2_SystemSaveScreen.c`, `player.c` ni `effsub1b.c`**:
+- **MWCC no es determinista con `ps2_SystemSaveScreen.c`, `player.c`, `effsub1b.c` ni `adv.c`**:
   - en `ps2_SystemSaveScreen.c` (`DispSysSaveMessageSelect`) cambia el orden de dos constantes float;
   - en `player.c` (`bhCPM2_act_wlk`) cambia el registro float elegido (`$f12`/`$f13`). Seis compilaciones del mismo fuente dieron cuatro objetos distintos;
   - en `effsub1b.c` (`bhDraw137`) cambia hasta el tamaño de la función (8 bytes), lo que desplaza todo lo que va detrás. Cinco compilaciones dieron cuatro objetos distintos.
+  - en `adv.c` cambian unos bytes de `DisplayOptionBg` (visto en el hito 7: tres recompilaciones hasta coincidir).
 
   Para comparar dos ELF byte a byte, borra el `.o` y recompila hasta que coincida (`rm build/src/ps2/veronica/prog/player.o` y `compile.py`). Para saber qué objeto difiere, compara las tablas de símbolos de los dos ELF: el primer símbolo con otra dirección o tamaño lo indica. Compara solo los segmentos `PT_LOAD`; la información de depuración cambia con cualquier línea nueva.
 - **Con el build por defecto (SDK 2.0), los `printf` del juego no salen en el log de PCSX2**, ni con la consola del EE ni con la del IOP, y `njPrintC` está vacío. Para verificar en tiempo de ejecución:

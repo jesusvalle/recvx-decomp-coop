@@ -18,6 +18,7 @@ La arquitectura del motor en la que se basa este documento está en [../architec
 | 2026-10-11 | **Hito 2d implementado** (sin commits, sin probar en PCSX2): Start en el mando 2 abre el inventario de P2, que usa, combina, examina y equipa con su mando; P2 recoge objetos con su botón de acción y usa el baúl general compartido. Plan: [2026-10-11-coop-hito2d.md](../superpowers/plans/2026-10-11-coop-hito2d.md). Revisión final: un fallo crítico (las pulsaciones de P2 fuera de su máscara se repetían cada frame) y tres importantes, corregidos. |
 | 2026-10-10 | **Sonidos de arma propios de P2** (sin commits): los sonidos del arma de P2 salen de su propio banco (`ARMS_xxx`), reducido a lo que usa el jugador y añadido al banco de voz, con las muestras en un hueco libre de la RAM de sonido. Antes, con P1 con el mechero o la pistola y P2 con el cuchillo, el cuchillo de P2 no sonaba. Probado en PCSX2 con la partida de prueba (P1 mechero, P2 cuchillo): HD fusionado en el IOP, muestras en la SPU2 y voces de la SPU2 leyendo de ellas al dar P2 una cuchillada; falta oírlo. Ver [Sonidos de arma de P2](#sonidos-de-arma-de-p2). |
 | 2026-10-11 | **Hito 3 implementado** (sin commits, sin probar en PCSX2): P2 tiene vida propia (guardada con la partida), los enemigos comunes van a por el jugador más cercano y le golpean, agarran y muerden; ácido, fuego, gas y explosiones dañan también a P2; si muere cualquiera de los dos, game over. Plan: [2026-10-11-coop-hito3.md](../superpowers/plans/2026-10-11-coop-hito3.md). Revisión final: un fallo crítico (P2 muerto en un agarre dejaba al enemigo y a P2 congelados) y cuatro importantes, corregidos. |
+| 2026-10-10 | **Hito 7 implementado** (sin commits, sin probar en PCSX2): 7a, P2 puede ser cualquier personaje (cuerpo, animaciones, datos z, armas, objeto enganchado, voz y retrato propios; dentro de sus contextos `sys->ply_id`/`costume`/`plzmtp` son los suyos); 7b, mercenarios a dos (P1 elige, la sala de selección se repite para P2 con el mando 2, cada uno con su inventario de mercenarios). En la historia no cambia nada (ni se carga la voz de P2). Revisión final: ningún fallo crítico; tres importantes (posición al repetir la selección, voz cargada sin necesidad en la historia, bloqueo sin mando 2) y cuatro menores, corregidos. Sin `COOP`, idéntico a la línea base. Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hito7-design.md). Plan: [2026-10-10-coop-hito7.md](../superpowers/plans/2026-10-10-coop-hito7.md). Ver [Hito 7](#hito-7-p2-de-cualquier-personaje-y-mercenarios-a-dos). |
 
 ## Hoja de ruta
 
@@ -104,10 +105,13 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 - [ ] Cinemáticas que muestran o colocan a P2 donde tenga sentido
 - [ ] Mechero y otros objetos de evento con P2
 
-### Hito 7 — Otros personajes y modos
+### 🟡 Hito 7 — Otros personajes y modos
 
-- [ ] P2 durante la parte de Chris (banco de animaciones y arma propios)
-- [ ] P2 en el Battle Game
+Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hito7-design.md).
+
+- [x] 7a: P2 de cualquier personaje (Claire, Claire B, Chris, Steve, Wesker), con su modelo, animaciones, armas, voz y retrato (sin probar)
+- [x] 7b: mercenarios a dos (P1 y luego P2 eligen personaje; cada uno con su inventario de mercenarios) (sin probar)
+- [ ] P2 durante la parte de Chris en la historia (usa el 7a)
 - [ ] Activar o desactivar el cooperativo desde el juego (sin recompilar)
 
 ## Decisiones tomadas
@@ -119,7 +123,7 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 | D3 | **Todo el código cooperativo va detrás de `#ifdef COOP`**, preferiblemente en archivos nuevos (por ejemplo `coop.c`/`coop.h`). | Compilando sin `COOP`, el código del juego sale igual que sin el mod. Eso permite comparar con objdiff y no ensucia el código decompilado. |
 | D5 | **El hito 2 se divide en 2a (aspecto), 2b (disparo) y 2c (inventario).** | El disparo con el mismo tipo de arma que P1 es barato; equipar un arma distinta (lo que da sentido al inventario propio) exige un cargador de arma propio. Decidido por el usuario el 2026-10-10. |
 | D6 | **P2 lleva el traje que no lleva P1** (Claire B si P1 va con el normal) **y en las manos la misma arma que P1** (clon visual de `sys->obwp[0/1]`). | Las animaciones de los dos trajes son idénticas, así que P2 solo necesita su modelo y sus texturas. Las manos van con el arma; clonar la de P1 es la base del disparo de 2b. Decidido por el usuario el 2026-10-10. |
-| D7 | **P2 se oculta mientras P1 no sea Claire** (`sys->ply_id != 0`). | P2 usa las animaciones de P1; con Chris no le valdrían. La parte de Chris queda para más adelante. Decidido por el usuario el 2026-10-10. |
+| D7 | **En la historia, P2 se oculta mientras P1 no sea Claire** (`sys->ply_id != 0`, ahora en `coopP2Allowed`). En mercenarios, P2 está siempre, salvo en la sala de selección. | Hasta el 7a, P2 usaba las animaciones de P1. Desde el 7a ya podría ir con Chris, pero los guiones de la parte de Chris no cuentan con P2; se deja para más adelante. Decidido por el usuario el 2026-10-10 (y mantenido en el 7a). |
 | D8 | **En 2b, P2 comparte la munición de P1** (`swork.pip` no cambia). **Desde el 2c, cada uno gasta la de su bloque.** | Es lo más equilibrado sin inventario propio; en 2c pasa a ser suya. Decidido por el usuario el 2026-10-10. |
 | D9 | **Las vibraciones de P2 van al mando 2.** | Tabla de vibración propia de P2 enviada al puerto 1; antes iban todas al mando 1. Decidido por el usuario el 2026-10-10. |
 | D10 | **Orden del hito 2 en adelante: 2c arma propia → 2d inventario, recoger y baúl → 3 salud y enemigos.** | El cuchillo inicial y equipar desde la pantalla de P2 necesitan antes el cargador de arma propio. Propuesto al usuario el 2026-10-11. |
@@ -129,6 +133,8 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 | D14 | **Los enemigos van a por el jugador más cercano; game over si muere cualquiera de los dos.** | Decidido por el usuario el 2026-10-11. |
 | D16 | **Los sonidos del arma de P2 van al banco de SE 4 (voz)**, como programas 32 + lista, con las muestras de su `ARMS_xxx` en el hueco libre de la SPU2 que empieza en 0x1E7400. Solo se suben las que usa el jugador (y las demás mientras quepan, hasta 0xDDC0 bytes). | El IOP solo admite un banco por puerto y un banco de armas completo no cabe; el hueco lo dejó la reserva de reverb (el juego solo usa Hall). No toca el driver del IOP. Pedido por el usuario el 2026-10-10. |
 | D15 | **El botón de acción de P2 solo mira zonas de objeto y de baúl general**, con un sondeo propio (`coopActionP2`) que copia la prueba de posición y ángulo del tipo 4 de `bhCheckExmAtari`; no llama a `bhCheckExmAtari`. | Así P2 no abre puertas, no sube escaleras ni salientes y no examina (hito 4), sin tocar las zonas de la sala. Tomada sin el usuario durante el 2d (pendiente de su revisión). |
+| D17 | **P2 puede ser cualquier personaje (7a):** dentro de sus contextos (`coopBegin`/`coopEnd`, G15 y G17), `sys->ply_id`, `sys->costume` y `sys->plzmtp` pasan a ser los de P2. Carga sus propias animaciones de cuerpo y datos z, y su arma del banco de su personaje. | Casi todo lo que depende del personaje (alcance del cuchillo, pasos, tablas de agarre, retrato) lee `sys->ply_id`: cambiarlo en el contexto evita tocar el código original. Decidido por el usuario el 2026-10-10. |
+| D18 | **Selección de mercenarios en dos fases repitiendo `RM_5500`:** al confirmar P1, la puerta a 5-52 se redirige a 5-50 y el guion de selección se repite con el mando 2; en esa fase el traje, el personaje y el inventario van a P2. Se puede repetir personaje; P2 recibe el Linear Launcher si está desbloqueado; game over si muere cualquiera; cronómetro, ranking y desbloqueos, de P1. | No hay código C de selección (es el guion de la sala). Repetir la sala no exige entender ni parchear el guion. Decidido por el usuario el 2026-10-10. |
 | D4 | **No se cambia la estructura de `SYS_WORK` ni de `BH_PWORK`.** El estado nuevo va en variables globales nuevas. | El rango `version..save_end` de `SYS_WORK` es el formato de la partida guardada y del reintento, y `bhInitSystem` usa un tamaño escrito a mano. Ver [rooms-and-memory.md](../architecture/rooms-and-memory.md). |
 
 ## Hito 1: P2 aparece y anda
@@ -158,7 +164,7 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
   | G1 | `pdGetPeripheral` | `coopGetPeripheral2` |
   | G2 | `bhSysCallPad` | `coopSetPad2` |
   | G3 | `bhInitPlayer` | `coopInitMemory` |
-  | G4 | Final de `bhReadPlayerData` (dread.c) | `coopSyncBodyMotions` (hito 2c). Antes: `coopCloneModel` en el mismo sitio (hito 1) y `coopCloneWeapon` al final de `bhReadWeaponData` (2a-2b) |
+  | G4 | ~~Final de `bhReadPlayerData` (dread.c)~~ | Quitado en el hito 7 (P2 carga sus animaciones). Fue `coopSyncBodyMotions` (2c), `coopCloneModel` (hito 1) y `coopCloneWeapon` al final de `bhReadWeaponData` (2a-2b) |
   | G5 | `bhFinishRoom` | `coopRoomStart` |
   | G6 | `bhMainSequence` | `coopControlPlayer2` |
   | G7 | `bhAllDrawModel` | `coopDrawPlayer2` |
@@ -175,6 +181,13 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
   | G19 (hito 3) | Principio de `bhCheckBombAtari` (weapon.c) | `coopCheckBombP2`: las explosiones dañan también a P2 |
   | G20 (sonido) | `LoadSoundPackFile`, principio de `case 2` (sdfunc.c) | `coopSePack`: el banco de armas de P2 va al banco 4 con su BD en el hueco; al banco de voz se le añaden los programas de P2 |
   | G21 (sonido) | `CallPlayerWeaponSeEx`, tras calcular `NeoSlotNo` (sdfunc.c) | `coopWeaponSeNo`: durante el update de P2, banco 4 y lista 32 + lista |
+  | G22 (hito 7a) | `bhSysCallMonitor`, modo 4, principio del paso 10 (system.c) | `coopReloadPlayer2`: en mercenarios, carga a P2 (cuerpo, arma, sonidos) en la primera sala tras elegir y vuelve a llamar a `coopRoomStart` |
+  | G23 (hito 7a, sonido) | Principio de `CallPlayerVoice` (sdfunc.c) | `coopVoiceSeNo`: durante el update de P2 (o de un enemigo que va a por P2), sus voces van a las listas 4-7 del banco 4 si su personaje no es el de P1 |
+  | G28 (hito 7a, sonido) | `sdBankDownload`, caso `SDE_DATA_TYPE_SHOT_BANK`, tras `iop_trans_offset = 0` (ps2_sg_sd.c) | `coopSeBdOffset`: la subida del BD de la voz de P2 empieza en 0x2B4A0 (con la vuelta de los 2 MB cae en el hueco bajo 0x050A0) |
+  | G24 (hito 7b) | `bhStartDoorDemo`, `case 0`, antes de aplicar el destino (room.c) | `coopBattleDoor`: la salida de la selección (5-50 → 5-52) vuelve a 5-50 la primera vez (fase P2) y deja pasar la segunda |
+  | G25 (hito 7b) | `bhSv`, caso 25 (event.c) | `coopBattleCostume`: en la fase P2, el traje es de P2 |
+  | G26 (hito 7b) | `bhPlayerChangeSet`, opcode 0x89 (event.c) | `coopBattleChange`: en la fase P2, el personaje es de P2 (sin `cng_pid` ni `cb_flg 0x80`) |
+  | G27 (hito 7b) | `bhExGameItemInit`, opcode 0xCF (event.c) | `coopBattleItemInit`: en la fase P2, el inventario de mercenarios va al bloque de P2 |
 
   No hay G10 (la numeración de las specs del 2c lo saltó).
 
@@ -431,3 +444,46 @@ Código: [coopsnd.c](../../src/ps2/veronica/prog/coopsnd.c), ganchos G20 y G21 e
 | 4 | La voz de Claire (daño, muerte) sigue sonando bien para los dos | Pendiente |
 | 5 | Cambio de personaje a Chris y vuelta: los sonidos de P2 siguen bien | Pendiente |
 | 6 | Salas con mucha reverb y vídeos: sin ruidos en los sonidos de P2 | Pendiente |
+
+## Hito 7: P2 de cualquier personaje y mercenarios a dos
+
+Spec: [2026-10-10-coop-hito7-design.md](../superpowers/specs/2026-10-10-coop-hito7-design.md). Plan: [2026-10-10-coop-hito7.md](../superpowers/plans/2026-10-10-coop-hito7.md).
+
+### Implementación (7a)
+
+- **Quién es P2:** `coop_p2_id` (0 Claire, 1 Chris, 2 Steve, 3 Wesker) y `coop_p2_cos` (traje, solo Claire). En la historia, Claire con el traje que no lleva P1 (como antes); en mercenarios, lo que elige P2. `coop_p2_ld_id` es el personaje cargado.
+- **Identidad en los contextos de P2** (`coopSwapId`/`coopRestoreId`, una copia por contexto: update de P2, enemigo que va a por P2, pantalla de P2): `sys->ply_id`, `sys->costume` y `sys->plzmtp` (datos z de `bhGetTransZ`) son los de P2. En la pantalla de P2 también se guarda y repone la mochila (`gm_flg 0x8000000`), que `StatusMain` calcula con el personaje.
+- **Carga:** `coopReadPlayer2Data` copia las animaciones de cuerpo a `coop_bmt2` (260 KB, reservado en `coopInitMemory`; el máximo medido es Wesker, 256.020 B) y las realiza en `coop_mnw2[0..99]`; los datos z van a `sys->lmmdlp + 0x5000` (12 KB libres tras la coleta). El fichero es `SYSTEM.AFS[id + 10 + traje*4]` y el arma `SYSTEM.AFS[20 + id*30 + arma]`. `PlyInfo[id]` da el radio y la altura.
+- **Voz** (coopsnd.c, G20, G23 y G28): en cada carga de P2 se pide su `CORE_<id>.SPQ` (flag 6). Sus 4 programas se añaden al HD del banco 4 en las listas 4-7, tras una entrada falsa que corta la duración de la última muestra de armas; sus muestras van al hueco bajo de la SPU2 (0x050A0, desplazamientos `0xFFE2B4A0 + off`, que el IOP suma en 32 bits). G23 remapea solo si el personaje de P2 no es el de P1. **Riesgo:** la subida del BD escribe en 0x2050A0 y depende de que la SPU2 dé la vuelta a los 2 MB; PCSX2 lo hace, el hardware real está sin comprobar. Ver [world-systems.md](../architecture/world-systems.md#driver-de-sonido-iop-y-memoria-spu2).
+- **Límites de la voz:** el slot 7 es compartido (un grito de P2 corta uno de P1) y suena en la posición de P1; la voz de muerte del game over (`CallPlayerDeadVoice`) es la del personaje de P1.
+- **Objeto enganchado** (`coopSetLinkObj`): la coleta de Claire (`lkmtab[0]`, simulada) o las gafas de Wesker (`lkmtab[1]`, rígidas en la cabeza: solo posición y `bhCalcModel`). Chris y Steve no llevan.
+- **G22:** en mercenarios, P2 no se carga en la carga completa (es la sala de selección), sino en el paso 10 del modo 4 de la primera sala tras elegir; después se vuelve a llamar a `coopRoomStart` (que `bhFinishRoom` ya había llamado sin P2). Solo carga si `coop_loaded == 0`: el personaje de P2 no cambia dentro de una partida de mercenarios (morir o terminar pasa por una carga completa).
+
+### Implementación (7b)
+
+- **Fases** (`coop_sel`: 0 elige P1, 1 elige P2, 2 hecho; se pone a 0 en cada carga completa, así que tras morir se empieza por P1):
+  1. P1 elige en la pantalla original (traje, personaje e inventario como siempre).
+  2. G24: la puerta 5-50 → 5-52 se cambia a 5-50. Se guardan el traje de P1 y la vista subjetiva (`gm_flg & 0x10028C0` y `ev_flg` 317), y empieza la fase P2. El cargador aplica el cambio de personaje de P1 al volver a entrar.
+  3. En la fase P2 (`coopSelP2`), `coopSetPad2` pone el mando 2 en `sys->pad_*` (con la máscara de `bhSysCallPad`) y el mando 1 no cuenta. G25, G26 y G27 desvían el traje, el personaje y el inventario a P2.
+  4. G24 deja pasar la segunda salida y repone el traje y la vista de P1. G22 carga a P2 en `RM_5520`.
+- **Sin mando 2** conectado al confirmar P1, no hay fase P2: P1 juega solo. Si la carga de P2 falla en la primera sala, no se reintenta hasta la siguiente carga completa.
+- **Mando:** el historial de P1 (`pad_oncpy`) se guarda al empezar la fase P2 y se repone al salir; la vuelta a 5-50 usa la posición por la que se entró.
+- **Inventario de P2** (`coopBattleItemInit`): copia de la tabla de `ExtraGameItemInit`, con el Linear Launcher delante si está desbloqueado, la vida al máximo y sin veneno.
+- **Pantalla de estado de P2:** su retrato sale del cambio de `ply_id` (7a); el mapa sigue bloqueado y la mochila activa como en el original.
+
+### Checklist de prueba manual
+
+| # | Prueba | Estado |
+| --- | --- | --- |
+| 1 | Historia: P2 sigue siendo Claire B (o A), con su coleta; se oculta en la parte de Chris y vuelve con Claire | Pendiente |
+| 2 | Historia con `COOP_TEST` y `COOP_TEST_P2_ID` 1, 2 o 3: P2 es Chris, Steve o Wesker (gafas), anda, corre, apunta y dispara con sus animaciones | Pendiente |
+| 3 | El inventario de P2 muestra su retrato y su mochila; al cerrarlo, P1 conserva la suya | Pendiente |
+| 4 | P2 recibe daño y grita con su voz; P1 con la suya | Pendiente |
+| 5 | Un zombi agarra a P2 (Chris o Steve): la animación del agarre encaja | Pendiente |
+| 6 | Mercenarios: P1 elige con el mando 1; la pantalla se repite y P2 elige con el mando 2 (el mando 1 no responde) | Pendiente |
+| 7 | Cada uno aparece en la primera sala con su personaje y su inventario de mercenarios, también repitiendo personaje | Pendiente |
+| 8 | Con el Linear Launcher desbloqueado, los dos lo tienen | Pendiente |
+| 9 | La vista subjetiva que elige P2 no cambia la de P1 | Pendiente |
+| 10 | Muere P2 → game over → vuelta a la selección empezando por P1 | Pendiente |
+| 11 | Llegar al final con los dos: el ranking es el de P1 | Pendiente |
+| 12 | Combinaciones grandes (P1 Claire + P2 Wesker, Claire B + Claire) cargan en todas las salas de mercenarios | Pendiente |

@@ -994,6 +994,9 @@ void bhStartDoorDemo()
         
         sys->error = 0;
         
+#ifdef COOP
+        coopBattleDoor(ddp);
+#endif
         sys->stg_no = ddp->stg_no;
         sys->rom_no = ddp->rom_no;
         sys->pos_no = ddp->pos_no;

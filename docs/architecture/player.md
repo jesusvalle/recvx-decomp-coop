@@ -99,7 +99,7 @@ Las animaciones de movimiento salen de `PlMtnAct[2][3][7]` (player.c:223). Los �
 | Puntero en `sys` | Tamaño | Uso |
 | --- | --- | --- |
 | `plmdlp` | 128 KB | Modelo. Los `O_WORK` (`owP`) de cada modelo van justo detrás del modelo, alineados a 256 (dread.c:161-170) |
-| `lmmdlp`, `wrmdlp`, `wlmdlp` | 32 KB cada uno | `lmmdlp` no lo usa el juego después de reservarlo; desde el hito 2a lo usa coop.c (coleta y huesos de las manos de P2) |
+| `lmmdlp`, `wrmdlp`, `wlmdlp` | 32 KB cada uno | `lmmdlp` no lo usa el juego después de reservarlo; desde el hito 2a lo usa coop.c: buffers de la coleta de P2 (0x0000-0x4FFF) y, desde el hito 7, sus datos z (0x5000) |
 | `plmthp` | 12 KB | Tabla de 512 `MN_WORK` (cuerpo 0-99, arma 100+) |
 | `plbmtp` | 384 KB | Animaciones de cuerpo |
 | `plwmtp` | 64 KB | Animaciones de arma |
@@ -116,7 +116,7 @@ En total son unos 724 KB, reservados con `bhGetFreeMemory` (pwksub.c:16) antes d
 | `[10]` | Claire (`ply_id` 0) | 1.294.440 B (modelo 54 KB, animaciones 251 KB, texturas 987 KB en el fichero) |
 | `[11]` | `ply_id` 1, probablemente Chris | 1.058.632 B |
 | `[12]` | `ply_id` 2, sin confirmar (¿Steve?) | 999.496 B |
-| `[13]` | `ply_id` 3, probablemente Wesker (empieza el Battle Game) | 1.134.056 B |
+| `[13]` | `ply_id` 3, Wesker (empieza el Battle Game; su objeto enganchado son las gafas, `bhObjWssg`) | 1.134.056 B |
 | `[14]` | Claire, traje alternativo (`costume` 1, "Claire B") | 1.249.352 B |
 | `[20 + ply_id*30 + wpnr_no]` | Arma (con las manos). `[20]` = sin arma: solo las dos manos, de un hueso cada una, sin animaciones | 260-335 KB |
 
@@ -147,7 +147,7 @@ Qué escribe `bhReadPlayerData`: copia los modelos a `sys->plmdlp`, las animacio
 | 6, 7 | Huevo y larva de polilla de `en27` (en27.c:62-66, 202; `bhCheckMothEgg`, player.c:1050) | No existen |
 
 - **Las animaciones de cuerpo de `[10]` y `[14]` son idénticas byte a byte** (251.472 B, 60 de 100 ranuras con datos), y también los datos z y la pose de reposo del esqueleto. Las animaciones de Claire sirven para Claire B.
-- Los cinco personajes comparten la jerarquía de 22 huesos: 0 raíz → 1 cadera (lleva la malla) → 2 → 3 columna → 4 pecho → 5 cabeza (`lkono` del pelo); brazo derecho 6-9 (9 = mano, `lkono` del arma derecha); brazo izquierdo 10-13 (13 = mano izquierda); piernas 14-17 y 18-21 (`PlyLegRoute`, `PlyFlip`, player.c:218-227). Los nombres son deducidos de las posiciones. Chris tiene otro banco de animaciones.
+- Los cinco personajes comparten la jerarquía de 22 huesos: 0 raíz → 1 cadera (lleva la malla) → 2 → 3 columna → 4 pecho → 5 cabeza (`lkono` del pelo); brazo derecho 6-9 (9 = mano, `lkono` del arma derecha); brazo izquierdo 10-13 (13 = mano izquierda); piernas 14-17 y 18-21 (`PlyLegRoute`, `PlyFlip`, player.c:218-227). Los nombres son deducidos de las posiciones. Chris, Steve y Wesker tienen otro banco de animaciones (solo 3 ranuras iguales a las de Claire; les faltan las 90-97 y tienen la 51, 57 y 58) y otros datos z. Tamaños medidos de las animaciones de cuerpo: Claire 251.472 B, Chris 247.036, Steve 238.800, Wesker 256.020.
 - **El cuerpo no tiene manos:** la tabla de skin no tiene vértices en los huesos 0, 9 y 13. Las manos que se ven son los objetos de arma `sys->obwp[0/1]`, cargados del fichero de arma (ver [combat.md](combat.md)). Sus texturas reutilizan el índice 0x73 del cuerpo de Claire.
 - Texturas en el pool (únicas, no lo que ocupan en el fichero): Claire 276.480 B, Claire B 258.816 B. Usan índices globales distintos (0x65-0x6A/0x73/0x1B8A frente a 0x96-0x9C), así que las dos pueden estar cargadas a la vez. Ver el sistema de texturas en [world-systems.md](world-systems.md).
 
@@ -207,10 +207,11 @@ Si se ejecuta el código del jugador con otra instancia en `plp`, esto se ve afe
 `coop.c` mantiene un segundo jugador, `BH_PWORK ply2`.
 
 - **Modelo (desde el hito 2a):**
-  - Modelo y texturas propios: el traje que no lleva P1 (`SYSTEM.AFS[14]`, Claire B, o `[10]`). Los lee `coopLoadPlayer2` en el paso 10 del modo 1 del cargador, y `coopReadPlayer2Data` (copia reducida de `bhReadPlayerData`) los vuelca en un pool de 64 KB reservado en `bhInitPlayer` antes de `mempb`.
-  - Comparte con P1 las animaciones (`mnwP = ply.mnwPb`), que son idénticas en los dos trajes.
+  - Modelo y texturas propios: en la historia, el traje que no lleva P1 (`SYSTEM.AFS[14]`, Claire B, o `[10]`); desde el hito 7, cualquier personaje (`SYSTEM.AFS[coop_p2_id + 10 + coop_p2_cos*4]`). Los lee `coopLoadPlayer2` en el paso 10 del modo 1 del cargador (en mercenarios, en el paso 10 del modo 4 tras la selección, G22), y `coopReadPlayer2Data` (copia reducida de `bhReadPlayerData`) los vuelca en un pool de 64 KB reservado en `bhInitPlayer` antes de `mempb`.
+  - Animaciones de cuerpo propias desde el hito 7 (`coop_bmt2`, 260 KB, realizadas en `coop_mnw2[0..99]`) y datos z propios (`bhGetTransZ` lee `sys->plzmtp`, que `coopBegin` cambia por los de P2). Hasta el hito 7 compartía las de P1, que son idénticas en los dos trajes de Claire.
+  - Dentro de sus contextos, `sys->ply_id`/`costume` son los de P2: `PlyInfo`, `KnfAtrTab`, `PlFootSnd`, `PlKDU` y las tablas de agarre de los enemigos usan su personaje.
   - En el hito 1, P2 era un clon de P1 (`coopCloneModel`): copia de `objP` y `owP` con la geometría y las texturas de P1.
-- **Manos y coleta:** objetos `O_WRK` propios de `coop.c`, no de `sys->obwp`. Las manos son un clon de `sys->obwp[0/1]` (`coopCloneWeapon`, al final de `bhReadWeaponData`) y la coleta es el modelo 4 de P2 con `bhObjClpn`. Sus huesos y los buffers de la coleta están en `sys->lmmdlp`. Se actualizan dentro de `coopBegin`/`coopEnd` y se dibujan con `bhDrawObject`.
+- **Manos y coleta:** objetos `O_WRK` propios de `coop.c`, no de `sys->obwp`. Las manos son un clon de `sys->obwp[0/1]` (`coopCloneWeapon`, al final de `bhReadWeaponData`) y la coleta es el modelo 4 de P2 con `bhObjClpn` (con Wesker, el modelo 4 son las gafas: rígidas, sin `bhObjClpn`; Chris y Steve no llevan objeto). Sus huesos y los buffers de la coleta están en `sys->lmmdlp`. Se actualizan dentro de `coopBegin`/`coopEnd` y se dibujan con `bhDrawObject`.
 - **Memoria propia:** `exp0` y `exp1` propios; `exp2` sale de `PlyPchInit` en cada sala; `exp3 = NULL` (el pelo usa el `exp3` de su propio objeto).
 - **Update:**
   - `bhControlPlayer()` se ejecuta con `plp = &ply2` dentro de `coopBegin()`/`coopEnd()`.

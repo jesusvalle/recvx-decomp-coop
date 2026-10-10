@@ -74,6 +74,10 @@ El proyecto cooperativo tiene su propio documento: [../coop/README.md](../coop/R
 | Scripts de evento | `bhInitEvent`, `bhControlEvent` | event.c:339, :379 |
 | Guion moviendo al jugador o a NPCs | `bhLoadWork`, `Player_controll`, `Sub_controll` | event.c:12713, :9271, :9758 |
 | Cambio de personaje | `bhPlayerChangeSet` | event.c:6264 |
+| Cambio de personaje en el cargador | `bhSysCallMonitor`, modo 4, pasos 3-7 (`cb_flg 0x80`, `cng_pid`) | system.c:1766-1849 |
+| Battle Game (mercenarios): entrada, selección, inventario | `CheckButton` (comando 3, `gm_mode = 3`); guion de `RM_5500` (no es C); `ExtraGameItemInit` (opcode 0xCF) | adv.c:1987; sub1.c:8567. Ver [inventory.md](inventory.md#battle-game) |
+| Qué depende del personaje | `sys->ply_id` (`PlyInfo`, `KnfAtrTab`, `PlFootSnd`, `PlKDU`, tablas de agarre), `sys->costume` (solo carga), `sys->plzmtp` (`bhGetTransZ`) | player.c, en01-en26. Ver [player.md](player.md#segunda-instancia-build-coop) |
+| Voces del jugador | `CallPlayerVoice` (banco 4, `CORE_<id>.SPQ`, programas 0x400-0x403); `RequestPlayerVoiceSoundBank` | sdfunc.c:1422, :773. Ver [world-systems.md](world-systems.md#driver-de-sonido-iop-y-memoria-spu2) |
 | Inventario / estado | `StatusInit`, `StatusMain` | sub1.c:1389, :3242 |
 
 ## Convenciones de nombres

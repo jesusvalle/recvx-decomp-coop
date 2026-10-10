@@ -17,6 +17,8 @@
 #define COOP_MNW_N 512
 #define COOP_WMT_SIZE 49152
 #define COOP_WMDL_SIZE 49152
+#define COOP_BMT_SIZE 266240
+#define COOP_ZMT_SIZE 0x3000
 
 typedef struct COOP_PAD
 {
@@ -41,10 +43,11 @@ extern BH_PWORK ply2;
 struct SPQ_HEADER;
 
 const PDS_PERIPHERAL* coopGetPeripheral2(void);
+int coopPad2Connected(void);
 void coopSetPad2(void);
 void coopInitMemory(void);
 int coopLoadPlayer2(void);
-void coopSyncBodyMotions(void);
+int coopReloadPlayer2(void);
 int coopMonitorWeapon2(void);
 void coopEff007Mag(O_WRK* op);
 void coopPreSubTask(void);
@@ -66,7 +69,15 @@ void coopSePack(struct SPQ_HEADER* h, unsigned char* buf);
 int coopWeaponSeNo(int se);
 void coopSeLoad(int snd);
 int coopSeStep(void);
+int coopVoiceSeNo(int se);
+void coopVoiceLoad(int id);
+unsigned int coopSeBdOffset(void);
 void coopPadActuater2(void);
+int coopSelP2(void);
+void coopBattleDoor(DOOR_WORK* ddp);
+int coopBattleCostume(int v);
+int coopBattleChange(int v);
+int coopBattleItemInit(void);
 
 #endif
 

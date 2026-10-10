@@ -26,6 +26,10 @@
 #include "../../../ps2/veronica/prog/zonzon.h"
 #include "../../../ps2/veronica/prog/main.h"
 
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
+
 #pragma optimization_level 4 // TODO: remove this pragma and compile the file passing the -O4,p flag instead 
 
 unsigned char* bhScePtr;
@@ -845,6 +849,12 @@ unsigned int bhSv()
         sys->itm[sys->ply_id * 16] = v1;
         break;
     case 25:
+#ifdef COOP
+        if (coopBattleCostume(v1) != 0)
+        {
+            break;
+        }
+#endif
         sys->costume = v1;
         break;
     }
@@ -6271,6 +6281,12 @@ unsigned int bhPlayerChangeSet()
 
     bhScePtr++;
     
+#ifdef COOP
+    if (coopBattleChange(v0) != 0)
+    {
+        return 1;
+    }
+#endif
     sys->cng_pid = v0;
 
     sys->cb_flg |= 0x80;
@@ -8907,6 +8923,12 @@ unsigned int bhExGameItemInit()
 {
 	bhScePtr += 2;
 
+#ifdef COOP
+	if (coopBattleItemInit() != 0)
+	{
+		return 1;
+	}
+#endif
 	ExtraGameItemInit();
 
 	return 1;

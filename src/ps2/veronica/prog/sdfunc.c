@@ -1420,6 +1420,9 @@ void SetSyukanModeSoundParam() {
 
 // 100% matching!
 void CallPlayerVoice(int SeNo) {
+#ifdef COOP
+    SeNo = coopVoiceSeNo(SeNo);
+#endif
     SetupSeGenericParm(7, SeNo, &PlayerPos, 1, GsSlotInfoSe[7].Flag);
     RequestInfo.PitchDelayTime = -2;
     if (!(GsSlotInfoSe[7].Flag & 2)) {

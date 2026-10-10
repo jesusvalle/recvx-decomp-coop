@@ -10,6 +10,7 @@ Están en `.superpowers/sdd/<plan>/tools/` (la más reciente: `2026-10-11-coop-h
 | --- | --- |
 | `check_build.py --sym X --str Y` | Que el último build no tiene errores y que el xMAP tiene los símbolos y el ELF las cadenas |
 | `cmp_load.py a.elf b.elf` | Compara los segmentos `PT_LOAD` de dos ELF (la prueba de identidad sin `COOP`) |
+| `symdiff.py a.elf b.elf` (hito 7) | Primeros símbolos con otra dirección o tamaño: dice qué objeto recompilar cuando la identidad falla por el no determinismo de MWCC |
 | `firstdiff.py` | Dice qué objeto difiere de `baseline_main.elf` (primer símbolo con otra dirección o tamaño) |
 | `baseline_main.elf` | ELF de referencia compilado sin el mod. **No se sube a git** (es el ejecutable del juego) |
 | `mdcheck.py` | Enlaces y tablas de `CLAUDE.md` y `docs/` |
