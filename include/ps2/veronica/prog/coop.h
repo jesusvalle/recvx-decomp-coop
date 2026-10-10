@@ -38,6 +38,8 @@ typedef struct COOP_PAD
 
 extern BH_PWORK ply2;
 
+struct SPQ_HEADER;
+
 const PDS_PERIPHERAL* coopGetPeripheral2(void);
 void coopSetPad2(void);
 void coopInitMemory(void);
@@ -60,6 +62,10 @@ void coopRoomStart(void);
 void coopControlPlayer2(void);
 void coopDrawPlayer2(void);
 void coopVibStop2(void);
+void coopSePack(struct SPQ_HEADER* h, unsigned char* buf);
+int coopWeaponSeNo(int se);
+void coopSeLoad(int snd);
+int coopSeStep(void);
 void coopPadActuater2(void);
 
 #endif

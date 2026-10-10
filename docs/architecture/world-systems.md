@@ -81,6 +81,53 @@ Las escaleras (`kaidan`) y escalones (`dansa`) leen el global `sys->pl_htp` (pla
 - `PlayerPos` se toma de `plp` (sdfunc.c:3010-3012).
 - `CallPlayerFootStepSe` (player.c:1433) no recibe posición, así que suena donde está `plp`. Existe `CallPlayerFootStepSeEx(…, pPos)` (sdfunc.c:1447), que sí la recibe.
 
+### Driver de sonido (IOP) y memoria SPU2
+
+Investigado en octubre de 2026 para los sonidos de arma de P2. Lo del IOP sale de desensamblar `PS2_DATA/MODULES/TSNDDRV.IRX` ("TSND Ver 1.6", Tamsoft), que conserva la tabla de símbolos (`.symtab`) y `.mdebug`.
+
+- **Cadena:** el EE (`ps2_sg_sd.c`, emulación de la API de sonido de Katana) encola órdenes con `Sdr*` (ps2_snddrv.c) y las manda por RPC a `TSNDDRV.IRX`, que usa `modhsyn`/`modmidi` de Sony.
+- **Ocho puertos fijos** con zona propia en la RAM de la SPU2 (2 MB). Tablas `.data` del IRX: `Tsnd_spuadr_tbl` (9 entradas, la última es el final), `Tsnd_spusize_tbl` y `Tsnd_hd_size`. Todos los bucles del driver van hasta 8.
+
+  | Puerto | Uso | SPU2 | Tamaño | Peor caso en disco | HD en el IOP |
+  | --- | --- | --- | --- | --- | --- |
+  | 0 | SE banco 0 (`COMMON.MLT`) | 0x020000 | 0xE400 | | 0x1000 |
+  | 1 | MIDI banco 1 (`DOOR_xxx.SPQ`) | 0x02E400 | 0x15800 | 85.888 | 0x1000 |
+  | 2 | MIDI banco 2 (sala) | 0x043C00 | 0x99800 | 626.624 | 0x4000 |
+  | 3 | MIDI banco 3 (sala) | 0x0DD400 | 0x39000 | 231.296 | 0x1000 |
+  | 4 | SE banco 1 (`ARMS_xxx.SPQ`) | 0x116400 | 0x1F000 | 125.888 (`ARMS_015`) | 0x1000 |
+  | 5 | SE banco 2 (sala) | 0x135400 | 0x2D000 | 175.424 | 0x1000 |
+  | 6 | SE banco 3 (sala) | 0x162400 | 0x77800 | 486.720 | 0x2000 |
+  | 7 | SE banco 4 (`CORE_xxx.SPQ`, voz) | 0x1D9C00 | 0xD800 | 53.760 | 0x1000 |
+
+  Cada zona tiene el tamaño de su peor caso: no sobra sitio dentro de ellas. El EE traduce banco → puerto con `SE_BANK = {0,4,5,6,7}` y `MIDI_BANK` (ps2_sg_sd.c, `sdMultiUnitDownload`). La tabla `IOP_hd_size` del EE (ps2_snddrv.c) solo sirve para calcular `iop_hd_adr`, que nadie lee.
+- **Reverb:** `TsndLoop` pone el final del área de efectos en 0x1FFFF (núcleo 0) y 0x1FFFFF (núcleo 1). El juego solo usa los modos 0 y 5, Hall, que ocupa 0xADE0 bytes (`SdrSetRev`, ps2_sg_sd.c). El driver reserva sitio para el modo más grande (Echo, 0x18040), así que **quedan dos huecos libres**:
+  - 0x050A0-0x1521F (≈ 64 KB); en 0x5080 hay un bloque del driver;
+  - 0x1E7400-0x1F521F (≈ 55 KB). Empieza justo donde acaba el puerto 7 y coincide con `Tsnd_spuadr_tbl[8]`.
+
+  En cinco savestates de juego los dos están a cero.
+- **Formato de los `.SPQ`** (`MULTSPQ1/2.AFS`; `MULTSPQ?.IDX` es la lista de claves de `SearchAfsInsideFileId`): una tabla de `SPQ_HEADER` (`Offset`, `Size`, `Type`, `BankNo`) acabada en `Offset == 0`. `Type`: 0 secuencia MIDI, 1 programas MIDI, 2 banco de SE y 5 entorno de sala. Cada bloque de tipo 1 o 2 lleva `{hd_off, hd_size, bd_off, bd_size}`.
+  - El HD es el formato JAM de Sony (`IECS` + chunks `Vers`, `Head`, `Vagi`, `Smpl`, `Sset` y `Prog`).
+  - Las muestras de `Vagi` se dan como desplazamientos relativos al principio del BD.
+  - El número de lista de un SE es el número de programa.
+  - Un banco de armas tiene entre 1 y 7 muestras y unos 32 programas.
+- **Carga de un banco de SE** (`sndr_trans_func`):
+  1. Se manda el HD (`SdrHDDataSet2`, orden 0x29) y se comprueba su suma.
+  2. Se manda el BD a trozos de 48 KB (`SdrBDDataTrans`, orden 0x2C). El IOP lo escribe en `Tsnd_spuadr_tbl[puerto & 0x7F] + desplazamiento`, que es de 24 bits, **sin comprobar el tamaño de la zona**.
+  3. `SdrBDDataSet2` (orden 0x2B) llama a `sceHSyn_Load(puerto + 10, Tsnd_spuadr_tbl[puerto], HD, banco 0)`. Cada puerto tiene un único banco cargado, y `modhsyn` calcula la dirección de cada muestra como base + desplazamiento.
+- **Reproducción:** la petición es `canal | puerto << 16 | programa << 8` (`sdShotPlay`). Hay 8 canales por banco de SE (`use_se_info`). `SetupSeGenericParm` saca el banco de los bits 8-11 del número de SE.
+- **Lo que el IOP lee del HD de un banco de SE** (orden 0x29, en `treq_BGM`):
+  - guarda una tabla por programa (`se_info`) para `Tsnd_tqreq`;
+  - `se_max[banco]` es el último índice de `Prog`. Un programa mayor se ignora;
+  - el driver supone que el primer split de cada programa indexa a la vez el sample set, el sample y la muestra (en todos los bancos del disco es así, salvo un desfase en `ARMS_015`);
+  - la duración de cada muestra sale de la distancia a la siguiente entrada de `Vagi`, y la de la última, del tamaño del BD de `Head` (+0x10).
+- **Banco de SE → puerto** en el IOP: `Tsnd_load_tbl` (16 bytes por puerto, byte 0xD = 0x80 | banco) llena `SE_TBL[banco]` con el puerto, su buffer de HD y `Tsnd_spuadr_tbl[puerto]`. El banco 4 es el puerto 7 (0x1D9C00).
+- **Carga desde el EE:**
+  - `ExecSoundSynchProgram` se ejecuta en la interrupción de VSync (`bhControlVSync`, sync.c), así que `LoadSoundPackFile` y las transferencias corren en paralelo al bucle del juego;
+  - se pide un banco con `SpqKeyCode` (clave de `MULTSPQ?.IDX`: `0x4000|n` armas, `0x8000|n` puertas, `0xFFF0|n` voz, `etapa*1000 + sala*10 + caso` salas) y `SpqFileReadRequestFlag` (1 sala, 2 armas, 3 puerta, 4 voz). Quien pide espera antes a que valga 0 (`CheckTransEndSoundBank`);
+  - mientras vale 2, `CallPlayerWeaponSeEx` no suena;
+  - `TransSoundPackDataFlag` (`ExecTransSoundData`) no lo activa nadie.
+- **Medir:** en un savestate de PCSX2, `SPU2.bin` lleva la RAM de sonido a partir del byte 0x10004 y `iopMemory.bin` la RAM del IOP. La base de `TSNDDRV` se encuentra buscando "TSND Ver 1.6" (dirección del módulo 0x18B59). En la parte de `SPU2.bin` anterior a 0x10004 están las direcciones de inicio de las voces en medias palabras.
+
 ## Interfaz y salud
 
 - No se muestra la vida durante el juego; solo en la pantalla de estado: `StatusInit` (sub1.c:1389) lee `plp->hp`/`stflg`, y `Pulse*` (sub1.c:9075-9275) dibuja el ECG.

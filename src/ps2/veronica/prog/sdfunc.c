@@ -17,6 +17,9 @@
 #include "../../../ps2/veronica/prog/sdcwrap.h"
 #include "../../../ps2/veronica/prog/vibman.h"
 #include "../../../ps2/veronica/prog/main.h"
+#ifdef COOP
+#include "../../../ps2/veronica/prog/coop.h"
+#endif
 
 //#include <string.h>
 
@@ -647,6 +650,9 @@ int LoadSoundPackFile(char* SpqFile)
         
         break;
     case 2:                           
+#ifdef COOP
+        coopSePack(pSpqHeader, pSdReadBuf);
+#endif
         if (pSpqHeader->Type != 5) 
         {
             if (CheckSpecialBank(pSpqHeader->Type, pSpqHeader->BankNo) == 0)
@@ -1552,6 +1558,9 @@ void CallPlayerWeaponSeEx(NJS_POINT3* pPos, int SeNo, int SlotNo)
     if (SpqFileReadRequestFlag != 2) 
     {
         NeoSlotNo = (SeNo & 0xFFFF00FF) | 0x100; 
+#ifdef COOP
+        NeoSlotNo = coopWeaponSeNo(NeoSlotNo);
+#endif
         
         if (SlotNo == 0) 
         {

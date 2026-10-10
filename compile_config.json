@@ -452,6 +452,7 @@
       "src/cri/mwlib/ee/lib/libadxe/sjr_clt.c",
       "src/cri/mwlib/ee/lib/libadxe/sjx.c",
       "src/ps2/veronica/prog/ps2_pxlconv.c",
-      "src/ps2/veronica/prog/coop.c"
+      "src/ps2/veronica/prog/coop.c",
+      "src/ps2/veronica/prog/coopsnd.c"
   ]
 }

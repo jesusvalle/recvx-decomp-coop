@@ -742,6 +742,16 @@ int coopLoadPlayer2(void)
             coop_wpn2_no = 0;
         }
 
+        coopSeLoad(WpnTab[coop_wpn2_no].snd_wpno);
+
+        coop_ld_mode = 6;
+        return 0;
+    case 6:
+        if (coopSeStep() == 0)
+        {
+            return 0;
+        }
+
         coop_ld_mode = 3;
         return 1;
     }
@@ -807,7 +817,12 @@ int coopMonitorWeapon2(void)
             printf("[COOP] error al leer el arma de P2\n");
         }
 
-        return 1;
+        coopSeLoad(WpnTab[coop_wpn2_no].snd_wpno);
+
+        sys->mn_md1 = 2;
+        return 0;
+    case 2:
+        return coopSeStep();
     }
 
     return 1;

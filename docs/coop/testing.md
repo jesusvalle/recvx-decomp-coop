@@ -49,7 +49,21 @@ Quitar `"COOP"` de `defines`, borrar `build/src/`, compilar y `cmp_load.py basel
 
 Los hitos 2c, 2d y 3 se hicieron sin PCSX2 (petición del usuario). La verificación fue: build y `check_build`, identidad sin `COOP` (con `player.o` pueden hacer falta más de 30 recompilaciones: si `identity.sh` acaba en DIFERENTES, repetirlo), pruebas sobre los datos del juego (`test_wpnfiles.py`), pruebas de código (`check_fix.py`) y una revisión final por hito con un revisor nuevo. El resumen y las checklists para el usuario están en [revision-2026-10-11.md](revision-2026-10-11.md).
 
+## Sonido
+
+Los `printf` no salen en el log, pero se puede verificar el sonido en un savestate. Herramientas en `.superpowers/sdd/2026-10-10-coop-sonido/tools/`:
+
+| Herramienta | Para qué |
+| --- | --- |
+| `chk.py X.p2s` | Estado de `coopsnd.c` (`coop_se_state`, muestras y tamaño del banco de P2), `SE_BANK` y el HD fusionado |
+| `chk2.py X.p2s` | Estructura del HD fusionado, muestras de P2 comparadas byte a byte con el `.SPQ` en la SPU2, `se_max`/`HdAddr`/`SE_TBL` del IOP |
+| `hd.py` | Lector de los HD de los `.SPQ` de `MULTSPQ1.AFS` |
+| `irx.py syms` / `irx.py FUNC…` | Símbolos y desensamblado de `TSNDDRV.IRX` |
+
+Para ver si un sonido ha llegado a sonar, guardar el savestate justo después y buscar en `SPU2.bin` (antes del byte 0x10004) direcciones en medias palabras dentro de la zona de sus muestras.
+
 ## Lo que no se puede probar sin el usuario
 
 - La vibración de los mandos.
+- Oír los sonidos (el arnés solo puede comprobar la RAM).
 - Cualquier cosa que necesite dos mandos reales a la vez o avanzar en la historia (puertas nuevas, otros personajes, enemigos concretos).

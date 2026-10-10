@@ -16,6 +16,7 @@ La arquitectura del motor en la que se basa este documento está en [../architec
 | 2026-10-10 | **Hito 2b implementado** (sin commits): P2 apunta y dispara con la misma arma que P1, con munición compartida; sus vibraciones van al mando 2. Revisión final: dos fallos críticos corregidos (manos de P2 sin actualizar, bloqueo para volver a apuntar). El usuario confirma en PCSX2 que P2 dispara. |
 | 2026-10-11 | **Hito 2c implementado** (sin commits, sin probar en PCSX2): P2 lleva su propia arma (el cuchillo al empezar), cargada desde su bloque de inventario `itm[256..]`, con sus modelos, texturas, animaciones y munición. Plan: [2026-10-11-coop-hito2c.md](../superpowers/plans/2026-10-11-coop-hito2c.md). Sin `COOP`, idéntico a la línea base. Revisión de la sesión: [revision-2026-10-11.md](revision-2026-10-11.md). Revisión final: sin críticos ni importantes. |
 | 2026-10-11 | **Hito 2d implementado** (sin commits, sin probar en PCSX2): Start en el mando 2 abre el inventario de P2, que usa, combina, examina y equipa con su mando; P2 recoge objetos con su botón de acción y usa el baúl general compartido. Plan: [2026-10-11-coop-hito2d.md](../superpowers/plans/2026-10-11-coop-hito2d.md). Revisión final: un fallo crítico (las pulsaciones de P2 fuera de su máscara se repetían cada frame) y tres importantes, corregidos. |
+| 2026-10-10 | **Sonidos de arma propios de P2** (sin commits): los sonidos del arma de P2 salen de su propio banco (`ARMS_xxx`), reducido a lo que usa el jugador y añadido al banco de voz, con las muestras en un hueco libre de la RAM de sonido. Antes, con P1 con el mechero o la pistola y P2 con el cuchillo, el cuchillo de P2 no sonaba. Probado en PCSX2 con la partida de prueba (P1 mechero, P2 cuchillo): HD fusionado en el IOP, muestras en la SPU2 y voces de la SPU2 leyendo de ellas al dar P2 una cuchillada; falta oírlo. Ver [Sonidos de arma de P2](#sonidos-de-arma-de-p2). |
 | 2026-10-11 | **Hito 3 implementado** (sin commits, sin probar en PCSX2): P2 tiene vida propia (guardada con la partida), los enemigos comunes van a por el jugador más cercano y le golpean, agarran y muerden; ácido, fuego, gas y explosiones dañan también a P2; si muere cualquiera de los dos, game over. Plan: [2026-10-11-coop-hito3.md](../superpowers/plans/2026-10-11-coop-hito3.md). Revisión final: un fallo crítico (P2 muerto en un agarre dejaba al enemigo y a P2 congelados) y cuatro importantes, corregidos. |
 
 ## Hoja de ruta
@@ -61,7 +62,8 @@ Spec: [2026-10-11-coop-hito2c-design.md](../superpowers/specs/2026-10-11-coop-hi
 - [x] Cargador de arma propio: modelos de manos y arma, animaciones y texturas de P2 (sin probar)
 - [x] Tabla de animaciones propia (cuerpo copiado de P1, arma propia) (sin probar)
 - [x] Munición propia y aviso de arma vacía por jugador (sin probar)
-- [x] P1 y P2 con armas distintas a la vez (los disparos de P2 suenan con el banco de P1) (sin probar)
+- [x] P1 y P2 con armas distintas a la vez (sin probar)
+- [x] Los sonidos del arma de P2 salen de su propio banco (G20, G21; ver [Sonidos de arma de P2](#sonidos-de-arma-de-p2))
 
 ### 🟡 Hito 2d — Inventario de P2, recoger objetos y baúl
 
@@ -123,8 +125,9 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 | D10 | **Orden del hito 2 en adelante: 2c arma propia → 2d inventario, recoger y baúl → 3 salud y enemigos.** | El cuchillo inicial y equipar desde la pantalla de P2 necesitan antes el cargador de arma propio. Propuesto al usuario el 2026-10-11. |
 | D11 | **El inventario de P2 vive en `sys->itm[256..271]`, con metadatos (firma, vida, veneno) en `itm[272..279]`.** | Rango libre en el código y en los 205 guiones de sala, y dentro de la partida guardada: se guarda sin cambiar el formato. |
 | D12 | **P2 empieza con el cuchillo; cada jugador recoge a su propio inventario; el baúl general es compartido.** | Decidido por el usuario el 2026-10-11. |
-| D13 | **Los disparos de P2 suenan con el banco de sonidos del arma de P1.** | Solo puede haber un banco de armas cargado. Decidido por el usuario el 2026-10-11. |
+| D13 | ~~**Los disparos de P2 suenan con el banco de sonidos del arma de P1.**~~ Sustituida por D16. | Solo puede haber un banco de armas cargado. Decidido por el usuario el 2026-10-11. |
 | D14 | **Los enemigos van a por el jugador más cercano; game over si muere cualquiera de los dos.** | Decidido por el usuario el 2026-10-11. |
+| D16 | **Los sonidos del arma de P2 van al banco de SE 4 (voz)**, como programas 32 + lista, con las muestras de su `ARMS_xxx` en el hueco libre de la SPU2 que empieza en 0x1E7400. Solo se suben las que usa el jugador (y las demás mientras quepan, hasta 0xDDC0 bytes). | El IOP solo admite un banco por puerto y un banco de armas completo no cabe; el hueco lo dejó la reserva de reverb (el juego solo usa Hall). No toca el driver del IOP. Pedido por el usuario el 2026-10-10. |
 | D15 | **El botón de acción de P2 solo mira zonas de objeto y de baúl general**, con un sondeo propio (`coopActionP2`) que copia la prueba de posición y ángulo del tipo 4 de `bhCheckExmAtari`; no llama a `bhCheckExmAtari`. | Así P2 no abre puertas, no sube escaleras ni salientes y no examina (hito 4), sin tocar las zonas de la sala. Tomada sin el usuario durante el 2d (pendiente de su revisión). |
 | D4 | **No se cambia la estructura de `SYS_WORK` ni de `BH_PWORK`.** El estado nuevo va en variables globales nuevas. | El rango `version..save_end` de `SYS_WORK` es el formato de la partida guardada y del reintento, y `bhInitSystem` usa un tamaño escrito a mano. Ver [rooms-and-memory.md](../architecture/rooms-and-memory.md). |
 
@@ -170,6 +173,8 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
   | G17 (hito 3) | `bhControlEnemy`, alrededor de `bhJumpEnemy[ep->id](ep)` (eneset.c) | `coopEnemyBegin` / `coopEnemyEnd`: elige objetivo; si es P2, `plp`, mando y vibración de P2 durante el update del enemigo |
   | G18 (hito 3) | `bhControlEffect`, alrededor del despacho por id (effect.c) | `coopEffectBegin` / `coopEffectEnd`: los efectos dañinos van al jugador más cercano; gas de sala sobre P2 |
   | G19 (hito 3) | Principio de `bhCheckBombAtari` (weapon.c) | `coopCheckBombP2`: las explosiones dañan también a P2 |
+  | G20 (sonido) | `LoadSoundPackFile`, principio de `case 2` (sdfunc.c) | `coopSePack`: el banco de armas de P2 va al banco 4 con su BD en el hueco; al banco de voz se le añaden los programas de P2 |
+  | G21 (sonido) | `CallPlayerWeaponSeEx`, tras calcular `NeoSlotNo` (sdfunc.c) | `coopWeaponSeNo`: durante el update de P2, banco 4 y lista 32 + lista |
 
   No hay G10 (la numeración de las specs del 2c lo saltó).
 
@@ -392,3 +397,37 @@ Spec: [2026-10-11-coop-hito3-design.md](../superpowers/specs/2026-10-11-coop-hit
 | 6 | Ácido de araña, polvo de polilla o fuego dañan a P2 si está más cerca | Pendiente |
 | 7 | Guardar con P2 herido y cargar: P2 vuelve herido | Pendiente |
 | 8 | Hunter y Cerberus atacan a P2; los jefes siguen yendo a por P1 | Pendiente |
+
+## Sonidos de arma de P2
+
+Código: [coopsnd.c](../../src/ps2/veronica/prog/coopsnd.c), ganchos G20 y G21 en [sdfunc.c](../../src/ps2/veronica/prog/sdfunc.c). La investigación del driver y de la memoria de sonido está en [world-systems.md](../architecture/world-systems.md#driver-de-sonido-iop-y-memoria-spu2).
+
+- **Carga:** cuando P2 carga un arma (`coopLoadPlayer2`, paso 6, y `coopMonitorWeapon2`, paso 2), `coopSeLoad(WpnTab[arma].snd_wpno)` y `coopSeStep` piden su `ARMS_xxx.SPQ` por la vía normal, con `SpqFileReadRequestFlag = 5`. Así se serializa con las cargas de P1, que esperan a que el flag valga 0. El cargador espera a que termine.
+- **G20** (en la interrupción de VSync, como toda la carga de bancos):
+  - si el `.SPQ` es el de P2, `coopSeBuildP2` elige los programas. Primero van las listas del jugador (disparo, bombeo, cargador, corredera, sin munición, casquillo, cuchillo…) y después las demás, mientras quepan en 0xDDC0 bytes;
+  - compacta sus muestras al principio del BD y renumera muestra, sample y sample set con el mismo índice, que es lo que espera el driver;
+  - `coopSeMerge` las junta con el HD de voz guardado, con los programas de P2 en 32 + lista;
+  - el bloque se reescribe para que vaya al banco 4. Mientras se sube, `SE_BANK[4] = 8`: `Tsnd_spuadr_tbl[8]` = 0x1E7400, el hueco;
+  - si el `.SPQ` es el de voz (`CORE_xxx`), se guarda su HD y se le añaden los programas de P2.
+- **G21:** con `plp == &ply2` y el banco listo, `CallPlayerWeaponSeEx` pide banco 4 y lista 32 + lista. Si P2 no tiene esa lista, suena como antes (banco de P1).
+- **Límites:**
+  - los proyectiles y explosiones (lanzagranadas, ballesta…) suenan desde el update de efectos, fuera del contexto de P2, y siguen usando el banco de P1;
+  - P1 y P2 comparten los slots 8 y 9 (alternos), así que tres disparos seguidos cortan el más antiguo, como con un solo jugador;
+  - el casquillo (`CallYakkyouSe`) sale de un efecto y usa el banco de P1.
+- **Medido** (partida de prueba, P2 con el cuchillo, `ARMS_012`):
+  - `coop_se_state = 2`, 6 muestras, 45.632 B;
+  - el HD fusionado (1.664 B) está en el buffer del puerto 7 del IOP y `se_max[4] = 63`;
+  - las 6 muestras están byte a byte en la SPU2 desde 0x1E7400 y la voz de Claire sigue intacta en 0x1D9C00;
+  - al dar P2 una cuchillada, dos voces de la SPU2 tienen su dirección de inicio en las muestras 8 y 9 del banco fusionado (0x1EF440 y 0x1F0A20).
+- **Sin `COOP`,** `sdfunc.o` sale idéntico (secciones de código y datos).
+
+### Checklist de prueba manual
+
+| # | Prueba | Estado |
+| --- | --- | --- |
+| 1 | P1 con el mechero o la pistola y P2 con el cuchillo: se oyen las cuchilladas de P2 | Pendiente (verificado en la RAM, falta oírlo) |
+| 2 | P1 con el cuchillo y P2 con la pistola (`COOP_TEST`): cada uno suena con su arma | Pendiente |
+| 3 | P2 cambia de arma desde su inventario: suena la nueva | Pendiente |
+| 4 | La voz de Claire (daño, muerte) sigue sonando bien para los dos | Pendiente |
+| 5 | Cambio de personaje a Chris y vuelta: los sonidos de P2 siguen bien | Pendiente |
+| 6 | Salas con mucha reverb y vídeos: sin ruidos en los sonidos de P2 | Pendiente |

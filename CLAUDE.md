@@ -87,7 +87,8 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
   - `src/ps2/veronica/prog/coop.c` + `include/ps2/veronica/prog/coop.h`;
   - el bloque `#ifdef COOP` al final de `ps2_sg_pad.c` (lectura del puerto 2);
   - el bloque `#ifdef COOP` al final de `ps2_sg_pdvib.c` (vibración del mando 2);
-  - ganchos pequeños (G1-G9 y G11-G19), listados en [docs/coop/README.md](docs/coop/README.md).
+  - `src/ps2/veronica/prog/coopsnd.c`: sonidos del arma de P2 (su banco reducido en el banco de SE 4 y un hueco libre de la SPU2);
+  - ganchos pequeños (G1-G9 y G11-G21), listados en [docs/coop/README.md](docs/coop/README.md).
 - **Cómo funciona:** P2 es `BH_PWORK ply2`. Se actualiza con el `bhControlPlayer()` original dentro de `coopBegin()`/`coopEnd()`, que intercambian el mando, ponen `plp = &ply2`, y guardan y restauran `st_flg`, `cb_flg`, `gm_flg`, `pt_flg`, `flr_idx`, `etc_idx`, `pl_htp`, `door` y `cam`.
 - **Regla:** cualquier llamada nueva que use `plp` por dentro (por ejemplo `bhCheckWallEx`) sobre P2 va dentro de ese contexto.
 - **Activar o desactivar:** `"COOP"` en `defines` de `compile_config.json`. Al cambiarlo, borra `build/src/`.
