@@ -26,7 +26,7 @@ Tipos de `itemdata[].type`: `0x1` arma equipable, `0x2` munición, `0x8` curaci�
 | Entrada | Contenido |
 | --- | --- |
 | `[0]` | Índice de la casilla equipada (0 = nada): `WeaponSet` sub1.c:4562-4579; `bhCheckBullet` weapon.c:426-428 |
-| `[1]` | Casilla especial fija que se dibuja aparte (sub1.c:2453-2497). El cuchillo (id 55) va siempre ahí (sub1.c:4078-4083); `cb_flg 0x1000000` la sustituye (sub1.c:4141-4161) |
+| `[1]` | Casilla especial fija que se dibuja aparte (sub1.c:2453-2497). El mechero (id 55, `pip[1] = 0x370001`, sub1.c:8503) va siempre ahí (sub1.c:4078-4083); `cb_flg 0x1000000` la sustituye (sub1.c:4141-4161) |
 | `[2..9]` | 8 casillas, en rejilla de 2 columnas (sub1.c:2501-2502) |
 | `[10..11]` | 2 casillas más con la mochila (`gm_flg 0x8000000`, sub1.c:1747, 2357, 7186) |
 | `[12..15]` | Sin uso como objetos. `[12]` lo leen los desplazamientos de `bhPlItemLost`/`bhPlItemLostEx` (event.c:1334-1337, 8294-8297), así que debe valer 0 |
@@ -37,7 +37,7 @@ Tipos de `itemdata[].type`: `0x1` arma equipable, `0x2` munición, `0x8` curaci�
 
 | Rango | Qué es |
 | --- | --- |
-| 0..15 | `ply_id` 0, Claire. Partida nueva: cuchillo en `[1]` y el id 145 (visor de archivos) en `[2]` (`AllItemInit`, sub1.c:8499-8521) |
+| 0..15 | `ply_id` 0, Claire. Partida nueva: mechero en `[1]` y el id 145 (visor de archivos) en `[2]` (`AllItemInit`, sub1.c:8499-8521) |
 | 16..31 | `ply_id` 1, Chris (deducido) (sub1.c:8523-8537) |
 | 32..47 | `ply_id` 2. `AllItemInit` lo inicializa con arma equipada: `[0]=2`, `[1]=id 138`, `[2]=id 34 ×400` (sub1.c:8539-8547). Quién es (¿Steve?) y si se usa en la historia: sin confirmar |
 | 48..63 | `ply_id` 3. En la historia no se inicializa; solo `ExtraGameItemInit` (Battle Game) |
@@ -53,7 +53,7 @@ Riesgo sobre 256..382: varios opcodes de script calculan el índice con operando
 
 - `sys->ply_hp[4]`, `ply_wno[4]` y `ply_stflg[4]`. Se escriben en la partida nueva (system.c:487-494), en `bhPushGameData` (room.c:1030-1039), en la máquina de escribir (bup_00.c:364-374), en el cambio de personaje (system.c:1737, 1754-1755) y desde scripts (event.c:830, 1297, 7421, 7452, 7773, 7784). Solo se leen con índice `sys->ply_id` (player.c:671-675, 1001-1004; room.c:487, 501; system.c:1795).
 - **Mochila:** `bhCheckSubPack` (player.c:1080-1117) pone `gm_flg 0x8000000` según `ev_flg` 6/7/8 para `ply_id` 0/1/2. Es un único bit para el personaje actual. En el Battle Game está siempre activa (sub1.c:3392-3395).
-- `standard[3][2]` (sub1.c:1287): objetos que no se guardan en el baúl (cuchillo, mechero) por `ply_id`. Solo tiene 3 filas.
+- `standard[3][2]` (sub1.c:1287): objetos que no se guardan en el baúl, por `ply_id`: `{55, 50}` para Claire (55 = mechero; 50 sin confirmar), `{55, -1}`… Solo tiene 3 filas.
 
 ## Abrir el inventario
 
@@ -114,6 +114,20 @@ Riesgo sobre 256..382: varios opcodes de script calculan el índice con operando
 
 ### Equipar, usar, combinar y examinar
 
+- **Id de objeto → arma** (`WeaponSet`, sub1.c:4456-4586):
+
+  | Id | `wpnr_no` | Id | `wpnr_no` |
+  | --- | --- | --- | --- |
+  | 0 | 0 (nada) | 9 | 4 |
+  | 1 | 20 | 10 | 5 |
+  | 2 | 12 | 11 | 18 |
+  | 3 | 13 | 32 | 6 |
+  | 4 | 11 | 33 | 7 |
+  | 5 | 3 (pistola; la que da `COOP_TEST`) | 34 | 8 |
+  | 6 | 14-17 según la munición cargada (bits `0x1000`/`0x2000`/`0x4000` de la mitad alta) | 55 | 1 (mechero) |
+  | 7 | 10, o 19 con el bit `0x2000` | 131 | 3 (pone además `gm_flg 0x10000000`) |
+  | 8 | 2 (cuchillo) | 142 | 9 |
+
 - **Equipar:** `WeaponSet(slot)` (sub1.c:4456-4586), desde "Equipar" (sub1.c:4799-4805), al combinar con el arma equipada (sub1.c:5594, 5624, 5673, 5703) y desde `GetItem` (sub1.c:4124).
   1. Traduce el id a `plp->wpnr_no` (sub1.c:4468-4560). Volver a equipar la misma arma la desequipa.
   2. `pip[0] = slot`, `plp->mode3 = 0`, **`mn_mode0 = 3`**.
@@ -134,7 +148,7 @@ Riesgo sobre 256..382: varios opcodes de script calculan el índice con operando
 
 - Se abren examinando con el botón de acción: zona tipo 4 con `attr & 0x2`, que pone `cb_flg 0x40000` (hitchk.c:4891-4905), o la tapa `bhObjItmBox` (objitm.c:799-831). Las variantes A y B usan `cb_flg 0x80000` y `0x100000` (hitchk.c:4893-4899).
 - La pantalla del baúl es `StatusMain` en modo 4, con `pip` = inventario del personaje y `bxp` = baúl.
-- El baúl general es compartido. `ItemBoxChange` aplica `standard[ply_id]` (cuchillo y mechero no se guardan) y reglas propias de `ply_id == 0`.
+- El baúl general es compartido. `ItemBoxChange` aplica `standard[ply_id]` (el mechero y otros objetos fijos no se guardan) y reglas propias de `ply_id == 0`.
 
 ## Máquina de escribir
 

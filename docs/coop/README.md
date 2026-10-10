@@ -2,7 +2,7 @@
 
 Objetivo: añadir un segundo jugador controlado con el mando 2 en el mismo juego (pantalla compartida, en PCSX2 o en una PS2 real). Se avanza por hitos, empezando por el más sencillo.
 
-La arquitectura del motor en la que se basa este documento está en [../architecture/](../architecture/README.md).
+La arquitectura del motor en la que se basa este documento está en [../architecture/](../architecture/README.md). Cómo probar (herramientas, navegación en PCSX2, partida de prueba, identidad sin `COOP`): [testing.md](testing.md).
 
 ## Estado
 
@@ -13,6 +13,7 @@ La arquitectura del motor en la que se basa este documento está en [../architec
 | 2026-10-10 | **Hito 1 implementado** (rama `coop-hito1`, sin commits). Spec: [2026-10-09-coop-hito1-design.md](../superpowers/specs/2026-10-09-coop-hito1-design.md). Plan: [2026-10-09-coop-hito1.md](../superpowers/plans/2026-10-09-coop-hito1.md). Probado en PCSX2: P2 aparece junto a Claire en la celda y se mueve con el mando 2 (confirmado por el usuario). Bug corregido: P2 desaparecía cuando P1 entraba en la animación de espera. Sin `COOP`, el ELF es idéntico byte a byte a la línea base. |
 | 2026-10-10 | **Revisión final del hito 1** (revisor nuevo): ningún fallo crítico y uno importante, corregido y probado en PCSX2: P2 aparecía en el demo de atracción del título y podía desincronizarlo. Los menores están en el registro de ejecución. Siguiente: diseño del hito 2 (Claire B con manos y coleta, inventario propio, disparo). |
 | 2026-10-10 | **Hito 2a implementado** (sin commits): P2 lleva el traje de Claire B, las manos con el arma de P1 y su propia coleta. Spec: [2026-10-10-coop-hito2a-design.md](../superpowers/specs/2026-10-10-coop-hito2a-design.md). Plan: [2026-10-10-coop-hito2a.md](../superpowers/plans/2026-10-10-coop-hito2a.md). Probado en PCSX2 cargando una partida guardada. Medido con `ramread.py`: margen de RAM en la peor sala ≈ 1,8 MB y del pool de texturas ≈ 1,4 MB. |
+| 2026-10-10 | **Hito 2b implementado** (sin commits): P2 apunta y dispara con la misma arma que P1, con munición compartida; sus vibraciones van al mando 2. Revisión final: dos fallos críticos corregidos (manos de P2 sin actualizar, bloqueo para volver a apuntar). El usuario confirma en PCSX2 que P2 dispara. |
 
 ## Decisiones tomadas
 
@@ -186,7 +187,7 @@ Spec: [2026-10-10-coop-hito2b-design.md](../superpowers/specs/2026-10-10-coop-hi
 
 | # | Prueba | Estado |
 | --- | --- | --- |
-| 1 | P2 apunta con R1 y dispara con X (configuración A) con la misma arma que P1 | Pendiente |
+| 1 | P2 apunta con R1 y dispara con X (configuración A) con la misma arma que P1 | ✅ (usuario, con `RECVX_TEST.iso`) |
 | 2 | Los disparos de P2 dañan y matan enemigos | Pendiente |
 | 3 | Los disparos de P2 gastan la munición de P1; P2 recarga del inventario de P1 | Pendiente |
 | 4 | El fogonazo de P2 ilumina su mano, no la de P1; el arma de P1 no se anima con los disparos de P2 | Pendiente |

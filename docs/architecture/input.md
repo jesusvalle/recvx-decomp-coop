@@ -15,7 +15,7 @@ Rutas relativas a `src/ps2/veronica/prog/`.
 | `Pad_init` | 646 | `scePadInit` y `scePadPortOpen` para el puerto 0 **y el 1** (buffers `Padd1`/`Padd2`). La llama `ps2_dummy.c:164`. |
 | `Ps2_pad_read` | 194 | **Fijado al puerto 0**: `scePadGetState(0,0)`, máquina de conexión, modo analógico y presión con el estado global `Pad_status`, `scePadRead(0,0,Pad_rdata1)` y `Pad_set(&Ps2_pad.pad1, 1)`. Al final llama a `Ps2_pad_actuater` (vibración). |
 | `pdGetPeripheral(port)` | 74 | Devuelve un `PDS_PERIPHERAL` **estático y único** (`pp`). Solo refresca una vez por frame (`Ps2_sys_cnt != Old_sys_cnt`), así que pedir el puerto 1 después del 0 devuelve los datos del 0. Con `port == 1` elige `Pad_rdata2`/`pad2`, que nunca se rellenan. El stick derecho se ignora (`x2 = y2 = 0`). |
-| `Ps2_Read_Key` | 379 | Copia el periférico en `Pad[0..3]` (estructura Dreamcast, padman.c) y gestiona `SoftResetFlag`. |
+| `Ps2_Read_Key` | 379 | Copia el periférico en `Pad[0..3]` (estructura Dreamcast, padman.c) y gestiona `SoftResetFlag`. En el código decompilado `Pad[].SoftReset` nunca se pone a un valor distinto de 0, así que **no hay reset por software** (`bhCheckSoftReset`, sync.c:283, nunca llega a `njUserExit`). Comprobado con grep. |
 | `Pad_set` | 524 | Ya admite `pad_num == 2` → `Pad_rdata2` (líneas 531-534). |
 | `pdGetPeripheralInfo(port)` | 148 | Ignora el argumento y comprueba el puerto 0. |
 

@@ -95,6 +95,7 @@ El teclado no está asignado a ningún mando: para pasar del título hace falta 
 - **Combate de P2 (hito 2b):** misma arma que P1 y munición compartida; `coopBegin`/`coopEnd` protegen también el objeto de arma, los impactos del frame, el fogonazo y el puerto de vibración (ver [combat.md](docs/architecture/combat.md)).
 - **`COOP_TEST`:** define solo para pruebas (nunca en el build normal): pone una pistola con 15 balas en el inventario de P1 al cargar. Se activa con `#define COOP_TEST` tras el `#ifdef COOP` de coop.c.
 - **Specs y planes:** `docs/superpowers/specs/` y `docs/superpowers/plans/`.
+- **Cómo probar** (herramientas, navegación en PCSX2, partida de prueba, identidad sin `COOP`): [docs/coop/testing.md](docs/coop/testing.md).
 
 ## Modelo mental del motor
 
